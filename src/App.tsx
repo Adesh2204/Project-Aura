@@ -14,6 +14,7 @@ import { apiService } from './services/apiService';
 import { storageService } from './services/storageService';
 import { UserProfile, AuraState } from './types';
 import { AnimatedOrb } from './Components/AnimatedOrb';
+import { CityMap } from './Components/CityMap';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call'>('permissions');
@@ -301,6 +302,12 @@ export default function App() {
             {aura.state === AuraState.SOS_ACTIVE && (
               <p className="text-sm text-green-600 font-semibold">Emergency Alert Sent!</p>
             )}
+          </div>
+
+          {/* New Delhi Map with family/friends */}
+          <div className="w-full">
+            <h2 className="text-sm text-gray-300 mb-2">Relatives & Friends in New Delhi</h2>
+            <CityMap height={320} />
           </div>
 
           {/* Activate Aura Button */}

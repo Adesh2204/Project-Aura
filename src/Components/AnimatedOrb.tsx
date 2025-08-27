@@ -77,7 +77,7 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
     const container = containerRef.current;
     if (!canvas || !container) return;
     const resize = () => {
-      const size = Math.min(container.clientWidth, 360);
+      const size = Math.min(container.clientWidth, 520);
       canvas.width = size * 2; // high‑dpi
       canvas.height = size * 2;
       canvas.style.width = `${size}px`;
@@ -121,7 +121,7 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
       const height = canvas.height;
       const cx = width / 2;
       const cy = height / 2;
-      const radius = Math.min(width, height) * 0.33;
+      const radius = Math.min(width, height) * 0.42;
 
       // Clear with subtle vignette
       ctx.clearRect(0, 0, width, height);
@@ -137,9 +137,9 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
       ctx.fillRect(0, 0, width, height);
 
       // Mesh parameters
-      const rows = 28;
-      const cols = 28;
-      const amplitude = radius * (0.18 + levelRef.current * 0.55);
+      const rows = 34;
+      const cols = 40;
+      const amplitude = radius * (0.22 + levelRef.current * 0.45);
 
       // Draw dotted mesh sphere
       ctx.save();
@@ -149,7 +149,7 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
         const v = i / rows;
         const theta = v * Math.PI; // 0..pi
         const ringR = Math.sin(theta) * radius;
-        const ringY = Math.cos(theta) * radius * 0.2;
+        const ringY = Math.cos(theta) * radius * 0.55;
         for (let j = 0; j < cols; j++) {
           const u = j / cols;
           const phi = u * Math.PI * 2 + t * 0.8;
@@ -161,7 +161,7 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
           const px = x * deform;
           const py = y * deform;
           const perspective = 1 / (1 + (z / (radius * 2)));
-          const size = Math.max(1.25, 2.5 * perspective + levelRef.current * 3);
+          const size = Math.max(1.8, 3.2 * perspective + levelRef.current * 3.2);
           const alpha = 0.12 + perspective * 0.22 + levelRef.current * 0.2;
           const grad = ctx.createRadialGradient(px, py, 0, px, py, size * 3);
           grad.addColorStop(0, `${c1}`);
