@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { AuraState } from '../types';
 
 interface AnimatedOrbProps {
@@ -8,106 +8,203 @@ interface AnimatedOrbProps {
   onRequestPermission: () => void;
 }
 
-// Color mapping for orb states
-const orbColors: Record<string, string> = {
-  idle: 'from-blue-400 via-purple-400 to-blue-500',
-  listening: 'from-blue-400 via-purple-400 to-blue-500',
-  active: 'from-yellow-400 via-orange-500 to-red-500',
-  alert: 'from-red-500 via-orange-500 to-yellow-400',
-  sos_active: 'from-green-400 via-green-500 to-green-600',
-};
+// Utility: linear interpolation
+const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
 
-const orbShadow: Record<string, string> = {
-  idle: 'shadow-blue-400/40',
-  listening: 'shadow-blue-400/40',
-  active: 'shadow-orange-400/60',
-  alert: 'shadow-red-500/70',
-  sos_active: 'shadow-green-500/60',
-};
-
+// Voice‑reactive mesh orb rendered to canvas
 export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
   auraState,
   isListening,
   permissionStatus,
   onRequestPermission
 }) => {
-  // Determine orb color and animation based on state
-  let colorClass = orbColors['idle'];
-  let shadowClass = orbShadow['idle'];
-  let pulseClass = 'animate-pulse-slow';
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const levelRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
 
-  if (permissionStatus !== 'granted') {
-    colorClass = 'from-gray-300 via-gray-400 to-gray-500';
-    shadowClass = 'shadow-gray-400/40';
-    pulseClass = '';
-  } else if (auraState === AuraState.ALERT) {
-    colorClass = orbColors['alert'];
-    shadowClass = orbShadow['alert'];
-    pulseClass = 'animate-pulse-fast ripple';
-  } else if (auraState === AuraState.SOS_ACTIVE) {
-    colorClass = orbColors['sos_active'];
-    shadowClass = orbShadow['sos_active'];
-    pulseClass = 'animate-flash-green';
-  } else if (auraState === AuraState.ACTIVE) {
-    colorClass = orbColors['active'];
-    shadowClass = orbShadow['active'];
-    pulseClass = 'animate-pulse-fast';
-  } else if (isListening) {
-    colorClass = orbColors['listening'];
-    shadowClass = orbShadow['listening'];
-    pulseClass = 'animate-pulse-slow';
-  }
+  // Colors by state (soft neon)
+  const colors = useMemo(() => {
+    return {
+      idle: ['#8ab4ff', '#b39ddb'],
+      listening: ['#8ab4ff', '#b39ddb'],
+      active: ['#ffd36e', '#ff8a65'],
+      alert: ['#ff6b6b', '#ffd166'],
+      sos_active: ['#34d399', '#059669']
+    } as Record<string, [string, string]>;
+  }, []);
+
+  // Setup microphone analyser once permission is granted
+  useEffect(() => {
+    const setup = async () => {
+      if (permissionStatus !== 'granted' || analyserRef.current) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.85;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        source.connect(analyser);
+        audioCtxRef.current = ctx;
+        audioSourceRef.current = source;
+        analyserRef.current = analyser;
+        dataArrayRef.current = dataArray;
+      } catch (e) {
+        console.error('Failed to init audio analyser', e);
+      }
+    };
+    setup();
+    return () => {
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch { /* noop */ }
+      }
+      analyserRef.current = null;
+      audioSourceRef.current = null;
+      audioCtxRef.current = null;
+      dataArrayRef.current = null;
+    };
+  }, [permissionStatus]);
+
+  // Resize canvas to container
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const resize = () => {
+      const size = Math.min(container.clientWidth, 360);
+      canvas.width = size * 2; // high‑dpi
+      canvas.height = size * 2;
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Animation loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let t = 0;
+
+    const draw = () => {
+      t += 0.008;
+
+      // Update voice level if available
+      const analyser = analyserRef.current;
+      const dataArray = dataArrayRef.current;
+      if (analyser && dataArray && (isListening || permissionStatus === 'granted')) {
+        analyser.getByteTimeDomainData(dataArray);
+        let sumSquares = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = (dataArray[i] - 128) / 128; // -1..1
+          sumSquares += v * v;
+        }
+        const rms = Math.sqrt(sumSquares / dataArray.length); // 0..~1
+        levelRef.current = lerp(levelRef.current, Math.min(rms * 3, 1), 0.2);
+      } else {
+        levelRef.current = lerp(levelRef.current, 0.05, 0.05);
+      }
+
+      const width = canvas.width;
+      const height = canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
+      const radius = Math.min(width, height) * 0.33;
+
+      // Clear with subtle vignette
+      ctx.clearRect(0, 0, width, height);
+      const grd = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius * 1.4);
+      const stateKey = auraState === AuraState.ALERT ? 'alert' :
+        auraState === AuraState.SOS_ACTIVE ? 'sos_active' :
+        auraState === AuraState.ACTIVE ? 'active' :
+        isListening ? 'listening' : 'idle';
+      const [c1, c2] = colors[stateKey];
+      grd.addColorStop(0, `${c1}22`);
+      grd.addColorStop(1, '#00000000');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, width, height);
+
+      // Mesh parameters
+      const rows = 28;
+      const cols = 28;
+      const amplitude = radius * (0.18 + levelRef.current * 0.55);
+
+      // Draw dotted mesh sphere
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i <= rows; i++) {
+        const v = i / rows;
+        const theta = v * Math.PI; // 0..pi
+        const ringR = Math.sin(theta) * radius;
+        const ringY = Math.cos(theta) * radius * 0.2;
+        for (let j = 0; j < cols; j++) {
+          const u = j / cols;
+          const phi = u * Math.PI * 2 + t * 0.8;
+          const x = Math.cos(phi) * ringR;
+          const y = ringY;
+          const z = Math.sin(phi) * ringR;
+          const noise = Math.sin((x + z) * 0.015 + t * 2) * Math.cos((y) * 0.04 + t);
+          const deform = 1 + (noise * amplitude) / Math.max(1, radius * 2);
+          const px = x * deform;
+          const py = y * deform;
+          const perspective = 1 / (1 + (z / (radius * 2)));
+          const size = Math.max(1.25, 2.5 * perspective + levelRef.current * 3);
+          const alpha = 0.12 + perspective * 0.22 + levelRef.current * 0.2;
+          const grad = ctx.createRadialGradient(px, py, 0, px, py, size * 3);
+          grad.addColorStop(0, `${c1}`);
+          grad.addColorStop(1, `${c2}00`);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = alpha;
+          ctx.beginPath();
+          ctx.arc(px, py, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // Soft glow
+      ctx.save();
+      const glow = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius * 1.1);
+      glow.addColorStop(0, `${c1}66`);
+      glow.addColorStop(1, '#00000000');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+    rafRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [auraState, isListening, permissionStatus, colors]);
+
+  const needsPermission = permissionStatus !== 'granted';
 
   return (
-    <div className={`relative flex items-center justify-center`} style={{ minHeight: 220 }}>
-      {/* Orb SVG with animated gradient */}
-      <div
-        className={`w-48 h-48 rounded-full bg-gradient-to-tr ${colorClass} ${shadowClass} ${pulseClass} transition-all duration-500`}
-        style={{ filter: 'blur(0.5px)', boxShadow: '0 0 60px 10px rgba(0,0,0,0.15)' }}
-      >
-        {/* Optionally, add SVG mesh or dots for more abstract look */}
-        <svg width="100%" height="100%" viewBox="0 0 192 192" className="absolute top-0 left-0 z-10 pointer-events-none">
-          <defs>
-            <radialGradient id="orbGradient" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fff" stopOpacity="0.7" />
-              <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          <circle cx="96" cy="96" r="92" fill="url(#orbGradient)" />
-          {/* Dots mesh effect */}
-          <g opacity="0.18">
-            {Array.from({ length: 24 }).map((_, i) => (
-              <circle
-                key={i}
-                cx={96 + 70 * Math.cos((i / 24) * 2 * Math.PI)}
-                cy={96 + 70 * Math.sin((i / 24) * 2 * Math.PI)}
-                r={2.5}
-                fill="#fff"
-              />
-            ))}
-          </g>
-        </svg>
-      </div>
-      {/* Ripple effect for alert state */}
-      {auraState === AuraState.ALERT && (
-        <span className="absolute w-64 h-64 rounded-full border-4 border-red-400 animate-ripple z-0"></span>
-      )}
-      {/* Checkmark for SOS confirmation */}
-      {auraState === AuraState.SOS_ACTIVE && (
-        <svg className="absolute w-24 h-24 z-20" viewBox="0 0 48 48">
-          <circle cx="24" cy="24" r="22" fill="none" stroke="#22c55e" strokeWidth="4" />
-          <polyline points="14,26 22,34 36,18" fill="none" stroke="#22c55e" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+    <div ref={containerRef} className={`relative flex items-center justify-center`} style={{ minHeight: 220 }}>
+      <canvas ref={canvasRef} className="rounded-full" />
+      {needsPermission && (
+        <button
+          onClick={onRequestPermission}
+          className="absolute bottom-2 px-3 py-1.5 text-xs rounded-full bg-white/10 backdrop-blur border border-white/20 hover:bg-white/20 transition"
+        >
+          Enable microphone for live orb
+        </button>
       )}
     </div>
   );
 };
-
-// Animations (add to your global CSS or Tailwind config)
-// .animate-pulse-slow { animation: pulse 2.5s cubic-bezier(.4,0,.6,1) infinite; }
-// .animate-pulse-fast { animation: pulse 0.7s cubic-bezier(.4,0,.6,1) infinite; }
-// .animate-flash-green { animation: flash-green 1.2s cubic-bezier(.4,0,.6,1) 2; }
-// .animate-ripple { animation: ripple 1.2s cubic-bezier(.4,0,.6,1) 2; }
-// @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.07);} }
-// @keyframes flash-green { 0%,100%{box-shadow:0 0 0 0 #22c55e44;} 50%{box-shadow:0 0 40px 10px #22c55e88;} }
-// @keyframes ripple { 0%{transform:scale(1);opacity:0.7;} 100%{transform:scale(1.4);opacity:0;} }
