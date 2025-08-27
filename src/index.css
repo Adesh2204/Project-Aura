@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #121212;
+    color: #F8FAFC;
+    line-height: 1.5;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  button {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+}
+
+@layer components {
+  .aura-button {
+    @apply relative w-64 h-64 rounded-full flex items-center justify-center text-white font-semibold text-xl shadow-2xl transition-all duration-300 ease-in-out;
+  }
+
+  .aura-button-idle {
+    @apply bg-aura-primary hover:bg-indigo-600 animate-breathe;
+  }
+
+  .aura-button-active {
+    @apply bg-aura-calm animate-pulse-active;
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+  }
+
+  .aura-button-alert {
+    @apply bg-aura-alert animate-pulse-alert;
+    box-shadow: 0 0 40px rgba(239, 68, 68, 0.4);
+  }
+
+  .aura-button-sos {
+    @apply bg-green-600 animate-pulse-calm;
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+  }
+
+  .emergency-voice-button {
+    @apply bg-red-500 hover:bg-red-600 text-white font-semibold py-4 px-6 rounded-xl;
+    @apply flex items-center justify-center space-x-3 transition-all duration-200;
+    @apply shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  }
+
+  .wave-visualizer {
+    @apply absolute inset-0 rounded-full border-2 border-white border-opacity-30;
+    animation: wave 2s ease-in-out infinite;
+  }
+
+  @keyframes wave {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1.2);
+      opacity: 0;
+    }
+  }
+}
