@@ -73,8 +73,20 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+  const shouldAutoRestart = useRef(false);
 
-  // Initialize speech recognition
+  // Keep latest config values in refs to avoid re-creating callbacks each render
+  const enabledRef = useRef(config.enabled);
+  const languageRef = useRef(config.language);
+  const triggerPhraseRef = useRef(config.triggerPhrase);
+  const onActivateRef = useRef(config.onActivate);
+
+  useEffect(() => { enabledRef.current = config.enabled; }, [config.enabled]);
+  useEffect(() => { languageRef.current = config.language; }, [config.language]);
+  useEffect(() => { triggerPhraseRef.current = config.triggerPhrase; }, [config.triggerPhrase]);
+  useEffect(() => { onActivateRef.current = config.onActivate; }, [config.onActivate]);
+
+  // Initialize speech recognition (stable)
   const initializeRecognition = useCallback(() => {
     if (!isSupported) {
       setState(prev => ({ ...prev, error: 'Speech recognition not supported in this browser' }));
@@ -86,7 +98,7 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
 
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = config.language || 'en-US';
+    recognition.lang = languageRef.current || 'en-US';
     recognition.maxAlternatives = 3;
 
     recognition.onstart = () => {
@@ -95,15 +107,15 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
 
     recognition.onend = () => {
       setState(prev => ({ ...prev, isListening: false }));
-      // Restart if still enabled
-      if (config.enabled && state.permissionStatus === 'granted') {
+      // Restart only if we didn't intentionally stop
+      if (shouldAutoRestart.current && enabledRef.current && state.permissionStatus === 'granted') {
         setTimeout(() => {
           try {
             recognition.start();
           } catch (error) {
             console.error('Error restarting recognition:', error);
           }
-        }, 100);
+        }, 300);
       }
     };
 
@@ -113,7 +125,7 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
         .join(' ');
 
       // Check for trigger phrase with fuzzy matching
-      const triggerPhrase = config.triggerPhrase.toLowerCase();
+      const triggerPhrase = triggerPhraseRef.current.toLowerCase();
       const words = transcript.split(' ');
       const triggerWords = triggerPhrase.split(' ');
 
@@ -128,7 +140,7 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
 
       if (confidence >= 0.7) { // 70% confidence threshold
         setState(prev => ({ ...prev, confidence }));
-        config.onActivate();
+        onActivateRef.current();
       }
     };
 
@@ -151,7 +163,7 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
     };
 
     return recognition;
-  }, [config.triggerPhrase, config.onActivate, config.language, config.enabled, isSupported, state.permissionStatus]);
+  }, [isSupported, state.permissionStatus]);
 
   // Request microphone permission
   const requestPermission = useCallback(async () => {
@@ -169,9 +181,9 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
     }
   }, []);
 
-  // Start listening
+  // Start listening (stable)
   const startListening = useCallback(() => {
-    if (!config.enabled || state.permissionStatus !== 'granted') {
+    if (!enabledRef.current || state.permissionStatus !== 'granted') {
       return;
     }
 
@@ -179,16 +191,18 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
       const recognition = initializeRecognition();
       if (recognition) {
         recognitionRef.current = recognition;
+        shouldAutoRestart.current = true;
         recognition.start();
       }
     } catch (error) {
       console.error('Error starting speech recognition:', error);
       setState(prev => ({ ...prev, error: 'Failed to start speech recognition' }));
     }
-  }, [config.enabled, state.permissionStatus, initializeRecognition]);
+  }, [state.permissionStatus, initializeRecognition]);
 
-  // Stop listening
+  // Stop listening (stable)
   const stopListening = useCallback(() => {
+    shouldAutoRestart.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -226,18 +240,19 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
     checkPermission();
   }, []);
 
-  // Handle enabled/disabled changes
+  // Handle enabled/disabled changes in a controlled manner
   useEffect(() => {
-    if (config.enabled && state.permissionStatus === 'granted') {
+    if (enabledRef.current && state.permissionStatus === 'granted' && !state.isListening) {
       startListening();
-    } else {
+    }
+    if ((!enabledRef.current || state.permissionStatus !== 'granted') && state.isListening) {
       stopListening();
     }
 
     return () => {
       stopListening();
     };
-  }, [config.enabled, state.permissionStatus, startListening, stopListening]);
+  }, [state.permissionStatus, state.isListening, startListening, stopListening, config.enabled]);
 
   return {
     isListening: state.isListening,

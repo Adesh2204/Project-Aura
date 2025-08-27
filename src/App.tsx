@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
 // Removed AuraButton import
-import { EmergencyVoiceButton } from './Components/EmergencyVoiceButton';
-import { VoiceStatusIndicator } from './Components/VoiceStatusIndicator';
+// Removed unused component imports
 import { FakeCallScreen } from './Components/FakeCallScreen';
-import { StatusDisplay } from './Components/StatusDisplay';
 import { Settings as SettingsComponent } from './Components/Settings';
 import { PermissionPrompt } from './Components/PermissionPrompt';
 import { AlertConfirmationScreen } from './Components/AlertConfirmationScreen';
@@ -15,6 +13,7 @@ import { useVoiceActivation } from './hooks/useVoiceActivation';
 import { apiService } from './services/apiService';
 import { storageService } from './services/storageService';
 import { UserProfile, AuraState } from './types';
+import { AnimatedOrb } from './Components/AnimatedOrb';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call'>('permissions');
@@ -134,22 +133,22 @@ export default function App() {
 
 
 
-  const handleEmergencyVoiceActivate = async () => {
-    try {
-      // Trigger emergency voice state
-      aura.triggerEmergencyVoice();
-      setEmergencyVoiceActive(true);
-      
-      // Navigate to fake call screen
-      setCurrentView('fake-call');
-      
-      // Send silent location alert to emergency contacts
-      const currentLocation = await location.getCurrentLocation();
-      await apiService.triggerSmsAlert(userProfile.id, currentLocation);
-    } catch (error) {
-      console.error('Error activating emergency voice:', error);
-    }
-  };
+  // const handleEmergencyVoiceActivate = async () => {
+  //   try {
+  //     // Trigger emergency voice state
+  //     aura.triggerEmergencyVoice();
+  //     setEmergencyVoiceActive(true);
+  //     
+  //     // Navigate to fake call screen
+  //     setCurrentView('fake-call');
+  //     
+  //     // Send silent location alert to emergency contacts
+  //     const currentLocation = await location.getCurrentLocation();
+  //     await apiService.triggerSmsAlert(userProfile.id, currentLocation);
+  //   } catch (error) {
+  //     console.error('Error activating emergency voice:', error);
+  //   }
+  // };
 
   const handleCallAnswered = async () => {
     try {
@@ -268,30 +267,52 @@ export default function App() {
 
       {/* Main Content */}
       <div className="max-w-md mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Status Display */}
-          <StatusDisplay
-            state={aura.state}
-            transcription={aura.transcription}
-            aiResponse={aura.aiResponse}
-            isListening={aura.isListening}
-          />
-
-          {/* Voice Status Indicator */}
-          <VoiceStatusIndicator
+        <div className="space-y-8 flex flex-col items-center">
+          {/* Animated Orb as Central Visual */}
+          <AnimatedOrb
+            auraState={aura.state}
             isListening={voice.isListening}
             permissionStatus={voice.permissionStatus}
-            error={voice.error}
             onRequestPermission={voice.requestPermission}
           />
 
-          {/* Emergency AI Assistant Voice Button */}
-          {aura.state === AuraState.IDLE && (
+          {/* Status Text Below Orb */}
+          <div className="text-center">
+            {voice.permissionStatus === 'prompt' && (
+              <>
+                <p className="text-sm text-orange-600 font-medium mb-2">Aura needs microphone & location. Click settings to enable.</p>
+                <button
+                  onClick={voice.requestPermission}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md transition-colors mb-2"
+                >
+                  Grant Microphone Permission
+                </button>
+              </>
+            )}
+            {voice.permissionStatus === 'granted' && aura.state === AuraState.IDLE && (
+              <p className="text-sm text-gray-600">Aura is listening for 'Help Aura'...</p>
+            )}
+            {aura.state === AuraState.ACTIVE && (
+              <p className="text-sm text-blue-700 font-medium">Aura is active: Threat detected!</p>
+            )}
+            {aura.state === AuraState.ALERT && (
+              <p className="text-sm text-red-600 font-semibold">Codeword detected! Sending alert...</p>
+            )}
+            {aura.state === AuraState.SOS_ACTIVE && (
+              <p className="text-sm text-green-600 font-semibold">Emergency Alert Sent!</p>
+            )}
+          </div>
+
+          {/* Activate Aura Button */}
+          {aura.state === AuraState.IDLE && voice.permissionStatus === 'granted' && (
             <div className="flex justify-center">
-              <EmergencyVoiceButton
-                onActivate={handleEmergencyVoiceActivate}
+              <button
+                onClick={voice.startListening}
                 disabled={isProcessing || sosProcessing || emergencyVoiceActive}
-              />
+                className="w-full bg-aura-primary hover:bg-aura-calm text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span>Start Aura Monitoring</span>
+              </button>
             </div>
           )}
 
@@ -305,12 +326,10 @@ export default function App() {
             </div>
           )}
 
-          {/* Safety Reminder */}
+          {/* Safety Disclaimer */}
           <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
             <p className="text-xs text-gray-300 text-center">
-              Aura is a safety deterrent. In real emergencies, always call 911.
-              <br />
-              Your conversations are processed securely and not stored.
+              Aura is a safety deterrent. In real emergencies, always call 911.<br />Your conversations are processed securely and not stored.
             </p>
           </div>
         </div>
