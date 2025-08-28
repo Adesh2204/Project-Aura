@@ -307,7 +307,9 @@ export default function App() {
           {/* New Delhi Map with family/friends */}
           <div className="w-full">
             <h2 className="text-sm text-gray-300 mb-2">Relatives & Friends in New Delhi</h2>
-            <CityMap height={320} />
+            <div className="w-full max-w-md mx-auto">
+              <CityMap height={320} />
+            </div>
           </div>
 
           {/* Activate Aura Button */}

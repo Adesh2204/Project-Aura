@@ -32,12 +32,13 @@ interface CityMapProps {
 
 export const CityMap: React.FC<CityMapProps> = ({ height = 320 }) => {
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-gray-700 shadow-lg">
+    <div className="w-full overflow-hidden rounded-xl border border-gray-700 shadow-lg bg-white">
       <MapContainer
         center={delhiCenter}
         zoom={12}
         scrollWheelZoom={false}
-        style={{ height, width: '100%' }}
+        style={{ height, width: '100%', borderRadius: '12px' }}
+        className="z-0"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
@@ -48,11 +49,11 @@ export const CityMap: React.FC<CityMapProps> = ({ height = 320 }) => {
           <CircleMarker
             key={idx}
             center={c.position}
-            radius={10}
-            pathOptions={{ color: '#60a5fa', fillColor: '#93c5fd', fillOpacity: 0.35 }}
+            radius={8}
+            pathOptions={{ color: '#3b82f6', fillColor: '#60a5fa', fillOpacity: 0.7, weight: 2 }}
           >
             <Popup>
-              <div className="text-sm">
+              <div className="text-sm p-1">
                 <div className="font-semibold">{c.name}</div>
                 <div className="text-gray-600">{c.relation}</div>
                 <div className="text-gray-500">{c.position[0].toFixed(4)}, {c.position[1].toFixed(4)}</div>
