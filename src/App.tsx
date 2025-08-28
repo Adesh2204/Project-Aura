@@ -15,9 +15,10 @@ import { storageService } from './services/storageService';
 import { UserProfile, AuraState } from './types';
 import { AnimatedOrb } from './Components/AnimatedOrb';
 import { CityMap } from './Components/CityMap';
+import { MonitoringScreen } from './Components/MonitoringScreen';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call'>('permissions');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>('permissions');
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const profile = storageService.getUserProfile();
     return {
@@ -234,6 +235,16 @@ export default function App() {
     );
   }
 
+  // Render monitoring screen
+  if (currentView === 'monitoring') {
+    return (
+      <MonitoringScreen
+        onBack={() => setCurrentView('home')}
+        userLocation={location.location || { latitude: 28.6139, longitude: 77.2090 }}
+      />
+    );
+  }
+
   // Render fake call screen
   if (currentView === 'fake-call') {
     return (
@@ -310,6 +321,16 @@ export default function App() {
             <div className="w-full max-w-md mx-auto">
               <CityMap height={320} />
             </div>
+          </div>
+
+          {/* Monitor AURA Button */}
+          <div className="w-full">
+            <button
+              onClick={() => setCurrentView('monitoring')}
+              className="w-full bg-aura-primary hover:bg-aura-calm text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+            >
+              <span>Monitor AURA</span>
+            </button>
           </div>
 
           {/* Activate Aura Button */}

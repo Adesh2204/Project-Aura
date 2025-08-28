@@ -17,6 +17,9 @@ const contacts: Array<{ name: string; relation: string; position: [number, numbe
   { name: 'Vasant Kunj', relation: 'Friend', position: [28.5273, 77.1506] },
 ];
 
+// Current user location (mock - replace with actual GPS)
+const userLocation: [number, number] = [28.6139, 77.2090]; // Connaught Place area
+
 // Fix default icon path for Leaflet when bundling
 // @ts-ignore
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -45,6 +48,22 @@ export const CityMap: React.FC<CityMapProps> = ({ height = 320 }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        {/* User's current location */}
+        <CircleMarker
+          center={userLocation}
+          radius={12}
+          pathOptions={{ color: '#ef4444', fillColor: '#f87171', fillOpacity: 0.8, weight: 3 }}
+        >
+          <Popup>
+            <div className="text-sm p-1">
+              <div className="font-semibold text-red-600">Your Location</div>
+              <div className="text-gray-600">Current Position</div>
+              <div className="text-gray-500">{userLocation[0].toFixed(4)}, {userLocation[1].toFixed(4)}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+
+        {/* Relatives and friends locations */}
         {contacts.map((c, idx) => (
           <CircleMarker
             key={idx}
