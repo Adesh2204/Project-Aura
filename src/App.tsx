@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { Settings } from 'lucide-react';
-// Removed AuraButton import
-// Removed unused component imports
 import { FakeCallScreen } from './Components/FakeCallScreen';
 import { Settings as SettingsComponent } from './Components/Settings';
 import { PermissionPrompt } from './Components/PermissionPrompt';
 import { AlertConfirmationScreen } from './Components/AlertConfirmationScreen';
 import { useAuraState } from './hooks/useAuraState';
 import { useAudioCapture } from './hooks/useAudioCapture';
-import { useLocation } from './hooks/useLocation';
+import { useLocation as useGeoLocation } from './hooks/useLocation';
 import { useVoiceActivation } from './hooks/useVoiceActivation';
 import { apiService } from './services/apiService';
 import { storageService } from './services/storageService';
@@ -16,9 +15,38 @@ import { UserProfile, AuraState } from './types';
 import { AnimatedOrb } from './Components/AnimatedOrb';
 import { CityMap } from './Components/CityMap';
 import { MonitoringScreen } from './Components/MonitoringScreen';
+// MenuBar is used in AppContent component
+import ChatSection from './Components/ChatSection';
+import SafeRoute from './Components/SafeRoute';
 
-export default function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>('permissions');
+// Main App component with router
+const App = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/chat" element={<ChatSection />} />
+        <Route path="/safe-route" element={<SafeRoute />} />
+        <Route path="/monitoring" element={
+          <MonitoringScreen 
+            onBack={() => window.history.back()} 
+            userLocation={{ latitude: 28.6139, longitude: 77.2090 }} 
+          />} 
+        />
+        <Route path="*" element={<AppContent />} />
+      </Routes>
+    </Router>
+  );
+
+  return renderHomeScreen();
+};
+
+// Main content component that uses router hooks
+const AppContent = () => {
+  const routerNavigate = useNavigate();
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>(
+    storageService.isOnboardingComplete() ? 'home' : 'permissions'
+  );
+  const location = useGeoLocation();
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const profile = storageService.getUserProfile();
     return {
@@ -33,7 +61,9 @@ export default function App() {
 
   const aura = useAuraState();
   const audio = useAudioCapture();
-  const location = useLocation();
+  const location = useGeoLocation();
+  const routerLocation = useRouterLocation();
+  const navigate = useNavigate();
   
   // Define handleSOSActivate function
   const handleSOSActivate = async () => {
@@ -235,14 +265,10 @@ export default function App() {
     );
   }
 
-  // Render monitoring screen
+  // Navigate to monitoring route
   if (currentView === 'monitoring') {
-    return (
-      <MonitoringScreen
-        onBack={() => setCurrentView('home')}
-        userLocation={location.location || { latitude: 28.6139, longitude: 77.2090 }}
-      />
-    );
+    routerNavigate('/monitoring');
+    return null;
   }
 
   // Render fake call screen
@@ -256,8 +282,18 @@ export default function App() {
     );
   }
 
-  // Render main home screen
-  return (
+  // Add menu bar to home screen
+  if (currentView === 'home') {
+    return (
+      <>
+        <MenuBar />
+        {renderHomeScreen()}
+      </>
+    );
+  }
+
+  // Render main home screen content
+  const renderHomeScreen = () => (
     <div className="min-h-screen bg-aura-background">
       {/* Header */}
       <div className="bg-gray-900 shadow-lg">
