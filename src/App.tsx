@@ -280,13 +280,15 @@ const AppContent = () => {
   if (currentView === 'home') {
     return (
       <div className="min-h-screen bg-aura-background">
-        <MenuBar />
         <div className="bg-gray-900 shadow-lg">
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-white">Aura</h1>
-              <p className="text-sm text-gray-300">Personal Safety AI</p>
+            <div className="flex items-center space-x-2">
+              <MenuBar placement="inline" />
+              <div>
+                <h1 className="text-xl font-semibold text-white">Aura</h1>
+                <p className="text-sm text-gray-300">Personal Safety AI</p>
+              </div>
             </div>
             <button
               onClick={() => setCurrentView('settings')}

@@ -3,7 +3,11 @@ import { Menu, Transition } from '@headlessui/react';
 import { Menu as MenuIcon, X, MessageSquare, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const MenuBar = () => {
+interface MenuBarProps {
+  placement?: 'fixed' | 'inline';
+}
+
+const MenuBar = ({ placement = 'fixed' }: MenuBarProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
@@ -21,14 +25,23 @@ const MenuBar = () => {
     }
   ];
 
+  const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    if (placement === 'fixed') {
+      return <div className="fixed top-4 left-4 z-50">{children}</div>;
+    }
+    return <div className="relative">{children}</div>;
+  };
+
   return (
-    <div className="fixed top-4 left-4 z-50">
+    <Wrapper>
       <Menu as="div" className="relative">
         {({ open }) => (
           <>
             <Menu.Button 
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full bg-white bg-opacity-80 shadow-lg hover:bg-opacity-100 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75"
+              className={`${placement === 'fixed' 
+                ? 'p-2 rounded-full bg-white bg-opacity-80 shadow-lg hover:bg-opacity-100'
+                : 'p-1 rounded-lg hover:bg-gray-100'} transition-all duration-200 focus:outline-none`}
             >
               {isOpen ? (
                 <X className="w-6 h-6 text-gray-800" />
@@ -76,7 +89,7 @@ const MenuBar = () => {
           </>
         )}
       </Menu>
-    </div>
+    </Wrapper>
   );
 };
 
