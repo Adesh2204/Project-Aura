@@ -15,41 +15,45 @@ export const PermissionPrompt: React.FC<PermissionPromptProps> = ({ onComplete }
   const requestPermissions = async () => {
     setIsChecking(true);
     
-    try {
-      // Request microphone permission
+    const requestMic = async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
         setPermissions(prev => ({ ...prev, microphone: true }));
       } catch (micError) {
         console.warn('Microphone permission denied:', micError);
-        // Don't block the app if microphone permission is denied
       }
-      
-      // Request location permission
+    };
+
+    const requestLocation = async () => {
       try {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const done = () => { if (!resolved) { resolved = true; resolve(); } };
+          const timer = setTimeout(done, 2000);
           navigator.geolocation.getCurrentPosition(
             () => {
+              clearTimeout(timer);
               setPermissions(prev => ({ ...prev, location: true }));
-              resolve();
+              done();
             },
-            reject,
-            { enableHighAccuracy: false, timeout: 5000 }
+            () => {
+              // Ignore error; proceed without blocking
+              done();
+            },
+            { enableHighAccuracy: false, timeout: 2000, maximumAge: 60000 }
           );
         });
       } catch (locationError) {
-        console.warn('Location permission denied:', locationError);
-        // Don't block the app if location permission is denied
+        console.warn('Location permission error:', locationError);
       }
-      
-      // Continue even if some permissions are denied
-      setTimeout(onComplete, 1000);
-    } catch (error) {
-      console.error('Unexpected error during permission request:', error);
-      // Still continue to the app
-      setTimeout(onComplete, 1000);
+    };
+
+    try {
+      await Promise.allSettled([requestMic(), requestLocation()]);
     } finally {
       setIsChecking(false);
+      onComplete();
     }
   };
 

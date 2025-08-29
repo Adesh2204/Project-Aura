@@ -47,9 +47,9 @@ export const useLocation = () => {
           reject(new Error(errorMessage));
         },
         {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
+          enableHighAccuracy: false,
+          timeout: 3000,
+          maximumAge: 120000
         }
       );
     });
