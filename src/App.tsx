@@ -15,7 +15,7 @@ import { UserProfile, AuraState } from './types';
 import { AnimatedOrb } from './Components/AnimatedOrb';
 import { CityMap } from './Components/CityMap';
 import { MonitoringScreen } from './Components/MonitoringScreen';
-// MenuBar is used in AppContent component
+import MenuBar from './Components/MenuBar';
 import ChatSection from './Components/ChatSection';
 import SafeRoute from './Components/SafeRoute';
 
@@ -36,17 +36,17 @@ const App = () => {
       </Routes>
     </Router>
   );
-
-  return renderHomeScreen();
 };
 
 // Main content component that uses router hooks
 const AppContent = () => {
-  const routerNavigate = useNavigate();
+  const navigate = useNavigate();
+  const location = useGeoLocation();
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>(
     storageService.isOnboardingComplete() ? 'home' : 'permissions'
   );
-  const location = useGeoLocation();
+  const aura = useAuraState();
+  const audio = useAudioCapture();
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const profile = storageService.getUserProfile();
     return {
@@ -58,12 +58,6 @@ const AppContent = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sosProcessing, setSOSProcessing] = useState(false);
   const [emergencyVoiceActive, setEmergencyVoiceActive] = useState(false);
-
-  const aura = useAuraState();
-  const audio = useAudioCapture();
-  const location = useGeoLocation();
-  const routerLocation = useRouterLocation();
-  const navigate = useNavigate();
   
   // Define handleSOSActivate function
   const handleSOSActivate = async () => {
@@ -267,7 +261,7 @@ const AppContent = () => {
 
   // Navigate to monitoring route
   if (currentView === 'monitoring') {
-    routerNavigate('/monitoring');
+    navigate('/monitoring');
     return null;
   }
 
@@ -282,21 +276,12 @@ const AppContent = () => {
     );
   }
 
-  // Add menu bar to home screen
+  // Render main home screen
   if (currentView === 'home') {
     return (
-      <>
+      <div className="min-h-screen bg-aura-background">
         <MenuBar />
-        {renderHomeScreen()}
-      </>
-    );
-  }
-
-  // Render main home screen content
-  const renderHomeScreen = () => (
-    <div className="min-h-screen bg-aura-background">
-      {/* Header */}
-      <div className="bg-gray-900 shadow-lg">
+        <div className="bg-gray-900 shadow-lg">
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -403,3 +388,9 @@ const AppContent = () => {
     </div>
   );
 }
+  
+  // Fallback render to satisfy function return type
+  return null;
+};
+
+export default App;
