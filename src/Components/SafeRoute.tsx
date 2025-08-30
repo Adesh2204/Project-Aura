@@ -63,105 +63,118 @@ const SafeRoute = () => {
 
   if (isLoading || !currentLocation) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="animate-pulse text-gray-500">Loading route...</div>
+      <div className="min-h-screen bg-aura-background flex items-center justify-center">
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="animate-pulse text-gray-600">Loading route...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="flex items-center mb-2">
-          <button 
-            onClick={() => navigate(-1)}
-            className="mr-4 p-1 rounded-full hover:bg-gray-100"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <h1 className="text-lg font-semibold">Safe Route</h1>
-        </div>
-        <p className="text-sm text-gray-600 pl-11">
-          The safest route near you is Connaught Place police station
-        </p>
-      </div>
-
-      {/* Map */}
-      <div className="flex-1 relative">
-        <MapContainer
-          center={currentLocation}
-          zoom={15}
-          style={{ height: '100%', width: '100%' }}
-          zoomControl={false}
-          className="z-0"
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          
-          {/* Current Location */}
-          <Marker position={currentLocation} icon={currentLocationIcon}>
-            <Popup>Your Location</Popup>
-          </Marker>
-          
-          {/* Destination */}
-          <Marker position={DESTINATION.position} icon={destinationIcon}>
-            <Popup>
-              <div className="text-sm">
-                <p className="font-semibold">{DESTINATION.name}</p>
-                <p className="text-gray-600">{DESTINATION.address}</p>
+    <div className="min-h-screen bg-aura-background">
+      {/* Mobile App Header */}
+      <div className="bg-gray-900 shadow-lg">
+        <div className="max-w-md mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => navigate(-1)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-300" />
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-white">Safe Route</h1>
+                <p className="text-sm text-gray-400">The safest route near you is Connaught Place police station</p>
               </div>
-            </Popup>
-          </Marker>
-          
-          {/* Route */}
-          <Polyline 
-            positions={ROUTE_COORDINATES} 
-            color="#3b82f6"
-            weight={5}
-            opacity={0.8}
-          />
-        </MapContainer>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Route Info */}
-      <div className="bg-white border-t border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="font-semibold">To: {DESTINATION.name}</h3>
-            <p className="text-sm text-gray-500">{DESTINATION.address}</p>
+      {/* Main Content - Mobile App Style */}
+      <div className="max-w-md mx-auto px-4 py-6">
+        <div className="space-y-6">
+          {/* Map Container */}
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+            <div className="h-80 relative">
+              <MapContainer
+                center={currentLocation}
+                zoom={15}
+                style={{ height: '100%', width: '100%' }}
+                zoomControl={false}
+                className="z-0"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                
+                {/* Current Location */}
+                <Marker position={currentLocation} icon={currentLocationIcon}>
+                  <Popup>Your Location</Popup>
+                </Marker>
+                
+                {/* Destination */}
+                <Marker position={DESTINATION.position} icon={destinationIcon}>
+                  <Popup>
+                    <div className="text-sm">
+                      <p className="font-semibold text-gray-900">{DESTINATION.name}</p>
+                      <p className="text-gray-600">{DESTINATION.address}</p>
+                    </div>
+                  </Popup>
+                </Marker>
+                
+                {/* Route */}
+                <Polyline 
+                  positions={ROUTE_COORDINATES} 
+                  color="#3b82f6"
+                  weight={5}
+                  opacity={0.8}
+                />
+              </MapContainer>
+            </div>
           </div>
-          <button className="p-2 bg-blue-100 text-blue-600 rounded-full">
-            <Navigation className="w-5 h-5" />
-          </button>
+
+          {/* Route Info Card */}
+          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-gray-900">To: {DESTINATION.name}</h3>
+                <p className="text-sm text-gray-600">{DESTINATION.address}</p>
+              </div>
+              <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
+                <Navigation className="w-5 h-5" />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between text-sm text-gray-600 mb-6">
+              <div className="flex items-center">
+                <Clock className="w-4 h-4 mr-2" />
+                <span>15 min</span>
+              </div>
+              <div className="flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-2 text-yellow-500" />
+                <span>Safe Route</span>
+              </div>
+              <div>
+                <span>2.5 km</span>
+              </div>
+            </div>
+            
+            <button 
+              className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-lg hover:shadow-blue-500/20 transform hover:scale-105 active:scale-95"
+              onClick={() => {
+                // In a real app, this would open the route in the device's maps app
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${DESTINATION.position[0]},${DESTINATION.position[1]}&travelmode=walking`;
+                window.open(url, '_blank');
+              }}
+            >
+              Start Navigation
+            </button>
+          </div>
         </div>
-        
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div className="flex items-center">
-            <Clock className="w-4 h-4 mr-1" />
-            <span>15 min</span>
-          </div>
-          <div className="flex items-center">
-            <AlertTriangle className="w-4 h-4 mr-1 text-yellow-500" />
-            <span>Safe Route</span>
-          </div>
-          <div>
-            <span>2.5 km</span>
-          </div>
-        </div>
-        
-        <button 
-          className="w-full mt-4 py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
-          onClick={() => {
-            // In a real app, this would open the route in the device's maps app
-            const url = `https://www.google.com/maps/dir/?api=1&destination=${DESTINATION.position[0]},${DESTINATION.position[1]}&travelmode=walking`;
-            window.open(url, '_blank');
-          }}
-        >
-          Start Navigation
-        </button>
       </div>
     </div>
   );
