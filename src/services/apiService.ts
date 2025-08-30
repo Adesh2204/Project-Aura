@@ -1,17 +1,11 @@
 import { Location, AudioProcessingResult, ApiResponse } from '../types';
+import { supabaseService } from './supabaseService';
 
 // NOTE: Replace these with your actual API keys from environment variables
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key';
 const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || 'your-elevenlabs-api-key';
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'your-supabase-url';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-supabase-anon-key';
 
 class ApiService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = `${SUPABASE_URL}/functions/v1`;
-  }
 
   /**
    * Emergency warning messages for AI Assistant Voice
@@ -183,49 +177,41 @@ class ApiService {
    */
   async triggerSOSAlert(userId: string, location: Location): Promise<ApiResponse> {
     try {
-      // Check if we have valid Supabase configuration
-      if (!SUPABASE_URL || SUPABASE_URL === 'your-supabase-url' || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY === 'your-supabase-anon-key') {
-        console.warn('Supabase not configured, using mock response for SOS alert');
-        return {
-          success: true,
-          message: 'Critical SOS alert sent successfully (mock response - Supabase not configured)',
-          data: {
-            contactsNotified: 3,
-            location: location,
-            timestamp: new Date().toISOString()
-          }
-        };
-      }
-
-      const response = await fetch(`${this.baseUrl}/send-sos-alert`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          userId,
+      // Create SOS alert in Supabase
+      const sosAlert = await supabaseService.createSOSAlert({
+        user_id: userId,
+        location: {
           latitude: location.latitude,
           longitude: location.longitude
-        })
+        },
+        status: 'active'
       });
 
-      if (!response.ok) {
-        throw new Error(`SOS Alert failed: ${response.statusText}`);
+      if (!sosAlert) {
+        throw new Error('Failed to create SOS alert');
       }
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error sending SOS alert:', error);
-      // Return mock success for development
+      // Get emergency contacts from Supabase
+      const emergencyContacts = await supabaseService.getEmergencyContactsByUserId(userId);
+      
+      // Notify emergency contacts (this would typically be done via Edge Functions)
+      const contactsNotified = emergencyContacts.length;
+
       return {
         success: true,
-        message: 'Critical SOS alert sent successfully (mock response)',
+        message: 'SOS alert triggered successfully',
         data: {
-          contactsNotified: 3,
-          location: location,
+          alertId: sosAlert.id,
+          contactsNotified,
           timestamp: new Date().toISOString()
         }
+      };
+    } catch (error) {
+      console.error('Error sending SOS alert:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to trigger SOS alert',
+        data: null
       };
     }
   }

@@ -18,23 +18,28 @@ import { MonitoringScreen } from './Components/MonitoringScreen';
 import MenuBar from './Components/MenuBar';
 import ChatSection from './Components/ChatSection';
 import SafeRoute from './Components/SafeRoute';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Login } from './Components/Login';
+import { SignUp } from './Components/SignUp';
 
 // Main App component with router
 const App = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/chat" element={<ChatSection />} />
-        <Route path="/safe-route" element={<SafeRoute />} />
-        <Route path="/monitoring" element={
-          <MonitoringScreen 
-            onBack={() => window.history.back()} 
-            userLocation={{ latitude: 28.6139, longitude: 77.2090 }} 
-          />} 
-        />
-        <Route path="*" element={<AppContent />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/chat" element={<ChatSection />} />
+          <Route path="/safe-route" element={<SafeRoute />} />
+          <Route path="/monitoring" element={
+            <MonitoringScreen 
+              onBack={() => window.history.back()} 
+              userLocation={{ latitude: 28.6139, longitude: 77.2090 }} 
+            />} 
+          />
+          <Route path="*" element={<AppContent />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 };
 
@@ -42,25 +47,24 @@ const App = () => {
 const AppContent = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>(
-    storageService.isOnboardingComplete() ? 'home' : 'permissions'
+  const { user, userProfile, loading } = useAuth();
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth'>(
+    'auth'
   );
   const aura = useAuraState();
   const audio = useAudioCapture();
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const profile = storageService.getUserProfile();
-    return {
-      ...profile,
-      voiceActivationEnabled: profile.voiceActivationEnabled ?? false,
-      voiceActivationLanguage: profile.voiceActivationLanguage ?? 'en-US'
-    };
-  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [sosProcessing, setSOSProcessing] = useState(false);
   const [emergencyVoiceActive, setEmergencyVoiceActive] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   
   // Define handleSOSActivate function
   const handleSOSActivate = async () => {
+    if (!userProfile) {
+      console.error('No user profile available for SOS alert');
+      return;
+    }
+    
     setSOSProcessing(true);
     
     try {
@@ -96,12 +100,64 @@ const AppContent = () => {
   const voice = useVoiceActivation({
     triggerPhrase: 'Help Aura',
     onActivate: handleSOSActivate,
-    enabled: userProfile.voiceActivationEnabled ?? false,
-    language: userProfile.voiceActivationLanguage ?? 'en-US'
+    enabled: userProfile?.voiceActivationEnabled ?? false,
+    language: userProfile?.voiceActivationLanguage ?? 'en-US'
   });
+
+  // Handle authentication state changes
+  useEffect(() => {
+    console.log('App auth state changed:', { loading, user: !!user, userProfile: !!userProfile });
+    
+    if (loading) return;
+    
+    if (user && userProfile) {
+      console.log('User authenticated, checking onboarding status');
+      // User is authenticated, check if onboarding is complete
+      if (storageService.isOnboardingComplete()) {
+        console.log('Onboarding complete, setting view to home');
+        setCurrentView('home');
+      } else {
+        console.log('Onboarding incomplete, setting view to permissions');
+        setCurrentView('permissions');
+      }
+    } else {
+      console.log('User not authenticated, setting view to auth');
+      // User is not authenticated
+      setCurrentView('auth');
+    }
+  }, [user, userProfile, loading]);
+
+  // Show loading state
+  if (loading) {
+    console.log('Showing loading state');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication screen if user is not authenticated
+  if (currentView === 'auth') {
+    console.log('Rendering auth screen, mode:', authMode);
+    return (
+      <div>
+        {authMode === 'login' ? (
+          <Login onSwitchToSignUp={() => setAuthMode('signup')} />
+        ) : (
+          <SignUp onSwitchToLogin={() => setAuthMode('login')} />
+        )}
+      </div>
+    );
+  }
 
   // Check if onboarding is complete and handle voice activation changes
   useEffect(() => {
+    if (!userProfile) return;
+    
     if (storageService.isOnboardingComplete()) {
       setCurrentView('home');
     }
@@ -110,10 +166,12 @@ const AppContent = () => {
     if (userProfile.voiceActivationEnabled && voice.permissionStatus === 'prompt') {
       voice.requestPermission();
     }
-  }, [userProfile.voiceActivationEnabled]);
+  }, [userProfile?.voiceActivationEnabled]);
 
   // Handle audio processing workflow
   useEffect(() => {
+    if (!userProfile) return;
+    
     const processAudio = async () => {
       if (audio.audioBlob && aura.isListening) {
         setIsProcessing(true);
@@ -155,7 +213,7 @@ const AppContent = () => {
     };
 
     processAudio();
-  }, [audio.audioBlob, aura.isListening]);
+  }, [audio.audioBlob, aura.isListening, userProfile]);
 
 
 
@@ -196,6 +254,11 @@ const AppContent = () => {
   };
 
   const handleAllClear = async () => {
+    if (!userProfile) {
+      console.error('No user profile available for all-clear');
+      return;
+    }
+    
     try {
       // Send all-clear message to contacts
       const currentLocation = await location.getCurrentLocation();
@@ -213,6 +276,8 @@ const AppContent = () => {
   };
 
   const handleProfileUpdate = (updates: Partial<UserProfile>) => {
+    if (!userProfile) return;
+    
     const updatedProfile = { ...userProfile, ...updates };
     setUserProfile(updatedProfile);
     storageService.saveUserProfile(updatedProfile);
@@ -233,11 +298,21 @@ const AppContent = () => {
 
   // Render permission prompt
   if (currentView === 'permissions') {
+    if (!userProfile) {
+      setCurrentView('auth');
+      return null;
+    }
+    
     return <PermissionPrompt onComplete={handlePermissionsComplete} />;
   }
 
   // Render settings
   if (currentView === 'settings') {
+    if (!userProfile) {
+      setCurrentView('home');
+      return null;
+    }
+    
     return (
       <SettingsComponent
         userProfile={userProfile}
@@ -278,6 +353,11 @@ const AppContent = () => {
 
   // Render main home screen
   if (currentView === 'home') {
+    if (!userProfile) {
+      setCurrentView('auth');
+      return null;
+    }
+    
     return (
       <div className="min-h-screen bg-aura-background">
         <div className="bg-gray-900 shadow-lg">

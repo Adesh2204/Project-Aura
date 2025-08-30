@@ -182,14 +182,21 @@ export const Settings: React.FC<SettingsProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Your Name
                 </label>
-                <input
-                  type="text"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  onBlur={handleNameUpdate}
-                  placeholder="Enter your name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-aura-primary focus:border-transparent"
-                />
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="Enter your name"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-aura-primary focus:border-transparent text-gray-900"
+                  />
+                  <button
+                    onClick={handleNameUpdate}
+                    className="bg-aura-primary text-white py-2 px-4 rounded-md hover:bg-aura-primary-dark transition-colors"
+                  >
+                    Update
+                  </button>
+                </div>
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4">

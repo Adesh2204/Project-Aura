@@ -124,8 +124,20 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
         .map((result: SpeechRecognitionResult) => result[0].transcript.toLowerCase())
         .join(' ');
 
-      // Check for trigger phrase with fuzzy matching
+      console.log('Speech recognized:', transcript); // Add logging to debug
+
+      // Check for trigger phrase with improved matching
       const triggerPhrase = triggerPhraseRef.current.toLowerCase();
+      
+      // Direct match check first
+      if (transcript.includes(triggerPhrase)) {
+        console.log('Trigger phrase detected directly');
+        setState(prev => ({ ...prev, confidence: 1.0 }));
+        onActivateRef.current();
+        return;
+      }
+      
+      // Fallback to fuzzy matching
       const words = transcript.split(' ');
       const triggerWords = triggerPhrase.split(' ');
 
@@ -138,7 +150,8 @@ export const useVoiceActivation = (config: VoiceActivationConfig) => {
 
       const confidence = matchCount / triggerWords.length;
 
-      if (confidence >= 0.7) { // 70% confidence threshold
+      if (confidence >= 0.6) { // Lower threshold to 60% for better sensitivity
+        console.log('Trigger phrase detected with fuzzy matching, confidence:', confidence);
         setState(prev => ({ ...prev, confidence }));
         onActivateRef.current();
       }
