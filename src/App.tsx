@@ -12,6 +12,7 @@ import SafeRoute from './Components/SafeRoute';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { EmergencyProvider, useEmergency } from './contexts/EmergencyContext';
 import { VoiceActivatedOrb } from './Components/VoiceActivatedOrb';
+import { Login } from './Components/Login';
 
 // Mock components for missing imports
 const PermissionPrompt = ({ onComplete }: { onComplete: () => void }) => (
@@ -79,18 +80,19 @@ const App = () => {
 const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const { user, userProfile, signIn, signOut, loading } = useAuth();
+  const { user, userProfile, loading, signIn, signOut, signUp } = useAuth();
   const { activateEmergency } = useEmergency();
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth'>('auth');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth' | 'signup'>('home');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sosProcessing, setSOSProcessing] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionState>('prompt');
   
   // Mock aura state
   const aura = {
-    triggerSOS: () => {},
+    triggerSOS: () => { setSOSProcessing(true); },
     setTranscription: (text: string) => { console.log('Transcription:', text); },
     setAIResponse: (response: string) => { console.log('AI Response:', response); },
-    updateSOSResult: (result: any) => {},
+    updateSOSResult: (result: any) => { setSOSProcessing(false); },
     sosAlertResult: { data: { contactsNotified: 0, timestamp: new Date().toISOString() } }
   };
 
@@ -243,18 +245,64 @@ const AppContent: React.FC = () => {
   }, [user, userProfile, loading]);
 
   // Show loading state with timeout fallback
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Welcome to Aura</h1>
-          <p className="mb-6">Please sign in to continue</p>
-          <button 
-            onClick={() => signIn({})}
-            className="px-6 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Sign In
-          </button>
+          <h1 className="text-3xl font-bold mb-4">Loading Aura</h1>
+          <p className="mb-6">Please wait while we load your experience...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
+        <div className="max-w-md w-full">
+          <Login onSwitchToSignUp={() => setCurrentView('signup')} />
+        </div>
+      </div>
+    );
+  }
+
+  // Main app layout
+  if (currentView === 'home') {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        {/* Left Sidebar */}
+        <div className="w-20 bg-gray-900 text-white flex flex-col items-center py-4">
+          <MenuBar placement="inline" />
+          
+          {/* Aura Orb */}
+          <div className="mt-8">
+            <VoiceActivatedOrb 
+              auraState={sosProcessing ? 'sos_active' : 'idle'}
+              permissionStatus={permissionStatus}
+              onRequestPermission={async () => {
+                try {
+                  const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
+                  setPermissionStatus('granted');
+                  permission.getTracks().forEach(track => track.stop());
+                } catch (err) {
+                  setPermissionStatus('denied');
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Map View */}
+          <div className="flex-1 relative">
+            <CityMap 
+              userLocation={location} 
+              onLocationChange={() => {}} 
+              onError={(error) => console.error('Map error:', error)} 
+            />
+          </div>
         </div>
       </div>
     );
