@@ -107,19 +107,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, userData: Partial<UserProfile>) => {
+  const signUp = async (userData: {
+    email: string;
+    password: string;
+    fullName: string;
+    phoneNumber: string;
+    emergencyContacts?: { name: string; phoneNumber: string; }[];
+  }) => {
     try {
-      const { user: newUser, error } = await supabaseService.signUp(email, password, {
-        full_name: userData.fullName || '',
-        phone_number: userData.phoneNumber || '',
-        emergency_contacts: userData.emergencyContacts || []
-      });
-
-      if (error) {
-        console.error('SignUp error:', error);
+      const { data: { user: newUser }, error } = await supabaseService.signUp(userData.email, userData.password);
+      
+      if (error || !newUser) {
         return { user: null, error };
       }
-
+  
       if (newUser) {
         try {
           // Create user profile in database
@@ -127,27 +128,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             id: newUser.id,
             email: newUser.email!,
             full_name: userData.fullName || '',
-            phone_number: userData.phoneNumber || '',
-            emergency_contacts: userData.emergencyContacts || []
+            phone_number: userData.phoneNumber || ''
           });
-
+  
           if (profile) {
-            setUserProfile({
-              id: profile.id,
-              email: profile.email,
-              fullName: profile.full_name,
-              phoneNumber: profile.phone_number,
-              emergencyContacts: profile.emergency_contacts || [],
-              voiceActivationEnabled: false,
-              voiceActivationLanguage: 'en-US'
-            });
+            // Create default emergency contact if provided
+            if (userData.emergencyContacts && userData.emergencyContacts.length > 0) {
+              for (const contact of userData.emergencyContacts) {
+                await supabaseService.createEmergencyContact(newUser.id, contact);
+              }
+            } else {
+              // Create a default emergency contact
+              await supabaseService.createEmergencyContact(newUser.id, {
+                name: 'Emergency Services',
+                phoneNumber: '911'
+              });
+            }
+  
+            // Fetch complete user profile with contacts
+            const completeProfile = await supabaseService.getUserById(newUser.id);
+            if (completeProfile) {
+              setUserProfile({
+                id: completeProfile.id,
+                email: completeProfile.email || '',
+                fullName: completeProfile.full_name,
+                phoneNumber: completeProfile.phone_number,
+                emergencyContacts: completeProfile.emergency_contacts,
+                voiceActivationEnabled: false,
+                voiceActivationLanguage: 'en-US'
+              });
+            }
           }
         } catch (profileError) {
           console.error('Error creating user profile:', profileError);
-          // Still return success for auth, but log the profile creation error
         }
       }
-
+  
       return { user: newUser, error: null };
     } catch (error) {
       console.error('Error in signUp:', error);
@@ -160,7 +176,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { user: signedInUser, error } = await supabaseService.signIn(email, password);
       
       if (signedInUser && !error) {
-        // Fetch user profile
+        // Fetch user profile with emergency contacts
         const profile = await supabaseService.getUserById(signedInUser.id);
         if (profile) {
           setUserProfile({
@@ -168,19 +184,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             email: profile.email,
             fullName: profile.full_name,
             phoneNumber: profile.phone_number,
-            emergencyContacts: profile.emergency_contacts || [],
+            emergencyContacts: profile.emergency_contacts,
             voiceActivationEnabled: false,
             voiceActivationLanguage: 'en-US'
           });
         }
+      } else {
+        // If no profile exists, create one with default emergency contact
+        const newProfile = await supabaseService.createUser({
+          id: signedInUser.id,
+          email: signedInUser.email!,
+          full_name: '',
+          phone_number: ''
+        });
+        
+        if (newProfile) {
+          await supabaseService.createEmergencyContact(signedInUser.id, {
+            name: 'Emergency Services',
+            phoneNumber: '911'
+          });
+          
+          const completeProfile = await supabaseService.getUserById(signedInUser.id);
+          if (completeProfile) {
+            setUserProfile({
+              id: completeProfile.id,
+              email: completeProfile.email,
+              fullName: completeProfile.full_name,
+              phoneNumber: completeProfile.phone_number,
+              emergencyContacts: completeProfile.emergency_contacts,
+              voiceActivationEnabled: false,
+              voiceActivationLanguage: 'en-US'
+            });
+          }
+        }
       }
-
-      return { user: signedInUser, error };
-    } catch (error) {
-      console.error('Error in signIn:', error);
-      return { user: null, error };
     }
-  };
+
+    return { user: signedInUser, error };
+  } catch (error) {
+    console.error('Error in signIn:', error);
+    return { user: null, error };
+  }
+};
 
   const signOut = async () => {
     try {
