@@ -47,7 +47,7 @@ const App = () => {
 const AppContent = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const { user, userProfile, loading, updateUserProfile } = useAuth();
+  const { user, userProfile, loading, updateUserProfile, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth'>(
     'auth'
   );
@@ -335,10 +335,10 @@ const AppContent = () => {
   if (currentView === 'auth') {
     return (
       <div>
-        {/* Demo mode notification */}
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg">
-          <p className="text-sm font-medium">Demo Mode - Using Mock Authentication</p>
-        </div>
+                 {/* Demo mode notification */}
+         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg">
+           <p className="text-sm font-medium">Demo Mode - Enter any email/password to sign in</p>
+         </div>
         
         {authMode === 'login' ? (
           <Login onSwitchToSignUp={() => setAuthMode('signup')} />
@@ -368,12 +368,22 @@ const AppContent = () => {
                 <p className="text-sm text-gray-300">Personal Safety AI</p>
               </div>
             </div>
-            <button
-              onClick={() => setCurrentView('settings')}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <Settings className="w-5 h-5 text-gray-300" />
-            </button>
+                         <div className="flex items-center space-x-2">
+               <button
+                 onClick={() => setCurrentView('settings')}
+                 className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+               >
+                 <Settings className="w-5 h-5 text-gray-300" />
+               </button>
+               <button
+                 onClick={async () => {
+                   await signOut();
+                 }}
+                 className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+               >
+                 Sign Out
+               </button>
+             </div>
           </div>
         </div>
       </div>
