@@ -1,135 +1,66 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { Settings } from 'lucide-react';
+import { FakeCallScreen } from './Components/FakeCallScreen';
+import { Settings as SettingsComponent } from './Components/Settings';
+import { PermissionPrompt } from './Components/PermissionPrompt';
+import { AlertConfirmationScreen } from './Components/AlertConfirmationScreen';
+import { useAuraState } from './hooks/useAuraState';
+import { useAudioCapture } from './hooks/useAudioCapture';
 import { useLocation as useGeoLocation } from './hooks/useLocation';
+import { useVoiceActivation } from './hooks/useVoiceActivation';
 import { apiService } from './services/apiService';
-
-type PermissionState = 'granted' | 'denied' | 'prompt';
 import { storageService } from './services/storageService';
-import { MonitoringScreen } from './Components/MonitoringScreen';
+import { UserProfile, AuraState } from './types';
+import { AnimatedOrb } from './Components/AnimatedOrb';
 import { CityMap } from './Components/CityMap';
+import { MonitoringScreen } from './Components/MonitoringScreen';
+import MenuBar from './Components/MenuBar';
 import ChatSection from './Components/ChatSection';
 import SafeRoute from './Components/SafeRoute';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { EmergencyProvider, useEmergency } from './contexts/EmergencyContext';
-import { VoiceActivatedOrb } from './Components/VoiceActivatedOrb';
-import { Login } from './Components/Login';
-
-// Mock components for missing imports
-const PermissionPrompt = ({ onComplete }: { onComplete: () => void }) => (
-  <div>Permission Prompt</div>
-);
-
-const SettingsComponent = ({ onBack }: { onBack: () => void }) => (
-  <div>Settings</div>
-);
-
-const AlertConfirmationScreen = ({ onBack }: { onBack: () => void }) => (
-  <div>Alert Confirmation</div>
-);
-
-const FakeCallScreen = ({ onEndCall }: { onEndCall: () => void }) => (
-  <div>Fake Call</div>
-);
 
 // Main App component with router
 const App = () => {
-  const [isListening, setIsListening] = useState(false); // Used by VoiceActivatedOrb
-  const [permissionStatus, setPermissionStatus] = useState<PermissionState>('prompt');
   return (
-    <AuthProvider>
-      <EmergencyProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<AppContent />} />
-            <Route path="/chat" element={<ChatSection />} />
-            <Route path="/safe-route" element={<SafeRoute />} />
-            <Route 
-              path="/monitoring" 
-              element={
-                <MonitoringScreen 
-                  onBack={() => window.history.back()} 
-                  userLocation={{ latitude: 28.6139, longitude: 77.2090 }} 
-                />
-              } 
-            />
-            <Route path="*" element={<AppContent />} />
-          </Routes>
-          <VoiceActivatedOrb
-            auraState={isListening ? 'listening' : 'idle'}
-            isListening={isListening}
-            permissionStatus={permissionStatus}
-            onRequestPermission={async () => {
-              try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                stream.getTracks().forEach(track => track.stop());
-                setPermissionStatus('granted');
-              } catch (err) {
-                console.error('Error requesting microphone permission:', err);
-                setPermissionStatus('denied');
-              }
-            }}
-            className="w-24 h-24"
-          />
-        </Router>
-      </EmergencyProvider>
-    </AuthProvider>
+    <Router>
+      <Routes>
+        <Route path="/chat" element={<ChatSection />} />
+        <Route path="/safe-route" element={<SafeRoute />} />
+        <Route path="/monitoring" element={
+          <MonitoringScreen 
+            onBack={() => window.history.back()} 
+            userLocation={{ latitude: 28.6139, longitude: 77.2090 }} 
+          />} 
+        />
+        <Route path="*" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 };
 
 // Main content component that uses router hooks
-const AppContent: React.FC = () => {
+const AppContent = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const { user, userProfile, loading, signIn, signOut, signUp } = useAuth();
-  const { activateEmergency } = useEmergency();
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth' | 'signup'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring'>(
+    storageService.isOnboardingComplete() ? 'home' : 'permissions'
+  );
+  const aura = useAuraState();
+  const audio = useAudioCapture();
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    const profile = storageService.getUserProfile();
+    return {
+      ...profile,
+      voiceActivationEnabled: profile.voiceActivationEnabled ?? false,
+      voiceActivationLanguage: profile.voiceActivationLanguage ?? 'en-US'
+    };
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [sosProcessing, setSOSProcessing] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<PermissionState>('prompt');
-  
-  // Mock aura state
-  const aura = {
-    triggerSOS: () => { setSOSProcessing(true); },
-    setTranscription: (text: string) => { console.log('Transcription:', text); },
-    setAIResponse: (response: string) => { console.log('AI Response:', response); },
-    updateSOSResult: (result: any) => { setSOSProcessing(false); },
-    sosAlertResult: { data: { contactsNotified: 0, timestamp: new Date().toISOString() } }
-  };
-
-  // Handle emergency activation
-  const handleEmergencyActivation = useCallback(async () => {
-    if (!user?.id) {
-      console.error('User not authenticated');
-      return;
-    }
-    
-    try {
-      await activateEmergency('voice');
-      navigate('/chat');
-    } catch (error) {
-      console.error('Error activating emergency mode:', error);
-    }
-  }, [user, activateEmergency, navigate]);
-  
-  // Add timeout to prevent infinite loading
-  useEffect(() => {
-    if (loading) {
-      const timeout = setTimeout(() => {
-        console.log('Loading timeout reached, forcing to auth view');
-        setCurrentView('auth');
-      }, 10000); // 10 second timeout
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [loading]);
+  const [emergencyVoiceActive, setEmergencyVoiceActive] = useState(false);
   
   // Define handleSOSActivate function
   const handleSOSActivate = async () => {
-    if (!user?.id) {
-      console.error('User not authenticated');
-      return;
-    }
-    
     setSOSProcessing(true);
     
     try {
@@ -140,10 +71,7 @@ const AppContent: React.FC = () => {
       const currentLocation = await location.getCurrentLocation();
       
       // Send SOS alert
-      if (!user?.id) {
-        throw new Error('User not authenticated');
-      }
-      const result = await apiService.triggerSOSAlert(user.id, currentLocation);
+      const result = await apiService.triggerSOSAlert(userProfile.id, currentLocation);
       
       // Update SOS result
       aura.updateSOSResult(result);
@@ -164,163 +92,171 @@ const AppContent: React.FC = () => {
     }
   };
   
+  // Initialize voice activation
+  const voice = useVoiceActivation({
+    triggerPhrase: 'Help Aura',
+    onActivate: handleSOSActivate,
+    enabled: userProfile.voiceActivationEnabled ?? false,
+    language: userProfile.voiceActivationLanguage ?? 'en-US'
+  });
+
+  // Check if onboarding is complete and handle voice activation changes
+  useEffect(() => {
+    if (storageService.isOnboardingComplete()) {
+      setCurrentView('home');
+    }
+    
+    // Request microphone permission if voice activation is enabled
+    if (userProfile.voiceActivationEnabled && voice.permissionStatus === 'prompt') {
+      voice.requestPermission();
+    }
+  }, [userProfile.voiceActivationEnabled]);
+
   // Handle audio processing workflow
   useEffect(() => {
-    if (!user?.id) return;
-    
-    const processAudio = async (audioBlob: Blob) => {
-      if (!userProfile || !audioBlob) {
-        console.error('No user profile or audio data available');
-        return;
-      }
-      
-      try {
+    const processAudio = async () => {
+      if (audio.audioBlob && aura.isListening) {
         setIsProcessing(true);
         
-        // Ensure we have a valid Blob
-        if (!(audioBlob instanceof Blob)) {
-          throw new Error('Invalid audio data format');
-        }
-        
-        // Process audio through the complete workflow
-        const result = await apiService.processAudioWorkflow(audioBlob);
-        
-        // Update transcription and AI response
-        if (aura) {
-          aura.setTranscription(result.transcription);
-          aura.setAIResponse(result.ai_response);
-        }
-        
-        // Play the AI response
-        if (result.ai_response) {
-          await apiService.playAudioResponse(result.ai_response);
-        }
-      } catch (error) {
-        console.error('Error processing audio:', error);
-        // Optionally update UI to show error to user
-        if (aura) {
-          aura.setAIResponse('Sorry, there was an error processing your request.');
-        }
-      } finally {
-        setIsProcessing(false);
-      }
-    };
-
-    // Listen for audio blobs
-    const handleAudioData = (e: CustomEvent<Blob>) => {
-      processAudio(e.detail);
-    };
-
-    window.addEventListener('audioData', handleAudioData as EventListener);
-    return () => {
-      window.removeEventListener('audioData', handleAudioData as EventListener);
-    };
-  }, [user, userProfile, aura]);
-  
-  // Handle authentication state changes
-  useEffect(() => {
-    if (loading) return;
-    
-    if (user) {
-      console.log('User authenticated, checking profile and onboarding status');
-      // User is authenticated, check if profile exists and onboarding is complete
-      if (userProfile) {
-        if (storageService.isOnboardingComplete()) {
-          console.log('Onboarding complete, setting view to home');
-          setCurrentView('home');
-        } else {
-          console.log('Onboarding incomplete, setting view to permissions');
-          setCurrentView('permissions');
-        }
-      } else {
-        console.log('User authenticated but no profile yet, waiting for profile...');
-        // User is authenticated but profile is still loading
-        // Don't change view yet, wait for profile to load
-      }
-    } else {
-      console.log('User not authenticated, setting view to auth');
-      // User is not authenticated
-      setCurrentView('auth');
-    }
-  }, [user, userProfile, loading]);
-
-  // Show loading state with timeout fallback
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Loading Aura</h1>
-          <p className="mb-6">Please wait while we load your experience...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login screen if not authenticated
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
-        <div className="max-w-md w-full">
-          <Login onSwitchToSignUp={() => setCurrentView('signup')} />
-        </div>
-      </div>
-    );
-  }
-
-  // Main app layout
-  if (currentView === 'home') {
-    return (
-      <div className="flex h-screen bg-gray-100">
-        {/* Left Sidebar */}
-        <div className="w-20 bg-gray-900 text-white flex flex-col items-center py-4">
-          <MenuBar placement="inline" />
+        try {
+          // Process audio through the complete workflow
+          const result = await apiService.processAudioWorkflow(audio.audioBlob);
           
-          {/* Aura Orb */}
-          <div className="mt-8">
-            <VoiceActivatedOrb 
-              auraState={sosProcessing ? 'sos_active' : 'idle'}
-              permissionStatus={permissionStatus}
-              onRequestPermission={async () => {
-                try {
-                  const permission = await navigator.mediaDevices.getUserMedia({ audio: true });
-                  setPermissionStatus('granted');
-                  permission.getTracks().forEach(track => track.stop());
-                } catch (err) {
-                  setPermissionStatus('denied');
-                }
-              }}
-            />
-          </div>
-        </div>
+          // Update transcription and AI response
+          aura.updateTranscription(result.transcription);
+          aura.updateAiResponse(result.ai_response);
+          
+          // Play the AI response
+          await apiService.playAudioResponse(result.ai_response);
+          
+          // Handle threat detection
+          if (result.threat_detected) {
+            aura.triggerAlert();
+            
+            // Get location and send alert
+            try {
+              const currentLocation = await location.getCurrentLocation();
+              await apiService.triggerSmsAlert(userProfile.id, currentLocation);
+            } catch (locationError) {
+              console.error('Error getting location for alert:', locationError);
+              // Still send alert without precise location
+              await apiService.triggerSmsAlert(userProfile.id, { latitude: 0, longitude: 0 });
+            }
+          }
+          
+          // Clear the processed audio
+          audio.clearAudio();
+        } catch (error) {
+          console.error('Error processing audio:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    };
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Map View */}
-          <div className="flex-1 relative">
-            <CityMap 
-              userLocation={location} 
-              onLocationChange={() => {}} 
-              onError={(error) => console.error('Map error:', error)} 
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
+    processAudio();
+  }, [audio.audioBlob, aura.isListening]);
+
+
+
+  // const handleEmergencyVoiceActivate = async () => {
+  //   try {
+  //     // Trigger emergency voice state
+  //     aura.triggerEmergencyVoice();
+  //     setEmergencyVoiceActive(true);
+  //     
+  //     // Navigate to fake call screen
+  //     setCurrentView('fake-call');
+  //     
+  //     // Send silent location alert to emergency contacts
+  //     const currentLocation = await location.getCurrentLocation();
+  //     await apiService.triggerSmsAlert(userProfile.id, currentLocation);
+  //   } catch (error) {
+  //     console.error('Error activating emergency voice:', error);
+  //   }
+  // };
+
+  const handleCallAnswered = async () => {
+    try {
+      // Start playing emergency warnings
+      await apiService.playEmergencyWarnings();
+    } catch (error) {
+      console.error('Error playing emergency warnings:', error);
+    }
+  };
+
+  const handleEndCall = () => {
+    // Stop any ongoing warnings
+    apiService.stopEmergencyWarnings();
+    
+    // Reset state and return to home
+    aura.resetToIdle();
+    setEmergencyVoiceActive(false);
+    setCurrentView('home');
+  };
+
+  const handleAllClear = async () => {
+    try {
+      // Send all-clear message to contacts
+      const currentLocation = await location.getCurrentLocation();
+      await apiService.triggerSmsAlert(userProfile.id, currentLocation);
+      
+      // Reset to home
+      aura.resetToIdle();
+      setCurrentView('home');
+    } catch (error) {
+      console.error('Error sending all-clear:', error);
+      // Still return to home
+      aura.resetToIdle();
+      setCurrentView('home');
+    }
+  };
+
+  const handleProfileUpdate = (updates: Partial<UserProfile>) => {
+    const updatedProfile = { ...userProfile, ...updates };
+    setUserProfile(updatedProfile);
+    storageService.saveUserProfile(updatedProfile);
+    
+    // Update emergency contacts separately
+    if (updates.emergencyContacts) {
+      storageService.saveEmergencyContacts(updates.emergencyContacts);
+    }
+  };
+
+  const handlePermissionsComplete = () => {
+    if (storageService.isOnboardingComplete()) {
+      setCurrentView('home');
+    } else {
+      setCurrentView('settings');
+    }
+  };
 
   // Render permission prompt
   if (currentView === 'permissions') {
-    return <PermissionPrompt onComplete={() => setCurrentView('home')} />;
+    return <PermissionPrompt onComplete={handlePermissionsComplete} />;
   }
 
-  // Render settings screen
+  // Render settings
   if (currentView === 'settings') {
-    return <SettingsComponent onBack={() => setCurrentView('home')} />;
+    return (
+      <SettingsComponent
+        userProfile={userProfile}
+        onProfileUpdate={handleProfileUpdate}
+        onBack={() => setCurrentView('home')}
+      />
+    );
   }
 
-  // Render alert confirmation screen
+  // Render SOS confirmation screen
   if (currentView === 'sos-confirmation') {
-    return <AlertConfirmationScreen onBack={() => setCurrentView('home')} />;
+    return (
+      <AlertConfirmationScreen
+        alertResult={aura.sosAlertResult}
+        userLocation={location.location}
+        onBack={() => setCurrentView('home')}
+        onAllClear={handleAllClear}
+      />
+    );
   }
 
   // Navigate to monitoring route
@@ -331,35 +267,107 @@ const AppContent: React.FC = () => {
 
   // Render fake call screen
   if (currentView === 'fake-call') {
-    return <FakeCallScreen onEndCall={() => setCurrentView('home')} />;
+    return (
+      <FakeCallScreen
+        callerName="Dad"
+        onEndCall={handleEndCall}
+        onCallAnswered={handleCallAnswered}
+      />
+    );
   }
 
-  // Main app content when user is authenticated
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Main Content */}
-        <div className="space-y-4">
-          {/* Header */}
-          <header className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Aura Safety</h1>
-            <div className="flex space-x-4">
-              <button 
-                onClick={() => setCurrentView('settings')}
-                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
-                aria-label="Settings"
+  // Render main home screen
+  if (currentView === 'home') {
+    return (
+      <div className="min-h-screen bg-aura-background">
+        <div className="bg-gray-900 shadow-lg">
+        <div className="max-w-md mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <MenuBar placement="inline" />
+              <div>
+                <h1 className="text-xl font-semibold text-white">Aura</h1>
+                <p className="text-sm text-gray-300">Personal Safety AI</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setCurrentView('settings')}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <Settings className="w-5 h-5 text-gray-300" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-md mx-auto px-4 py-8">
+        <div className="space-y-8 flex flex-col items-center">
+          {/* Animated Orb as Central Visual */}
+          <AnimatedOrb
+            auraState={aura.state}
+            isListening={voice.isListening}
+            permissionStatus={voice.permissionStatus}
+            onRequestPermission={voice.requestPermission}
+          />
+
+          {/* Status Text Below Orb */}
+          <div className="text-center">
+            {voice.permissionStatus === 'prompt' && (
+              <>
+                <p className="text-sm text-orange-600 font-medium mb-2">Aura needs microphone & location. Click settings to enable.</p>
+                <button
+                  onClick={voice.requestPermission}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md transition-colors mb-2"
+                >
+                  Grant Microphone Permission
+                </button>
+              </>
+            )}
+            {voice.permissionStatus === 'granted' && aura.state === AuraState.IDLE && (
+              <p className="text-sm text-gray-600">Aura is listening for 'Help Aura'...</p>
+            )}
+            {aura.state === AuraState.ACTIVE && (
+              <p className="text-sm text-blue-700 font-medium">Aura is active: Threat detected!</p>
+            )}
+            {aura.state === AuraState.ALERT && (
+              <p className="text-sm text-red-600 font-semibold">Codeword detected! Sending alert...</p>
+            )}
+            {aura.state === AuraState.SOS_ACTIVE && (
+              <p className="text-sm text-green-600 font-semibold">Emergency Alert Sent!</p>
+            )}
+          </div>
+
+          {/* New Delhi Map with family/friends */}
+          <div className="w-full">
+            <h2 className="text-sm text-gray-300 mb-2">Relatives & Friends in New Delhi</h2>
+            <div className="w-full max-w-md mx-auto">
+              <CityMap height={320} />
+            </div>
+          </div>
+
+          {/* Monitor AURA Button */}
+          <div className="w-full">
+            <button
+              onClick={() => setCurrentView('monitoring')}
+              className="w-full bg-aura-primary hover:bg-aura-calm text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+            >
+              <span>Monitor AURA</span>
+            </button>
+          </div>
+
+          {/* Activate Aura Button */}
+          {aura.state === AuraState.IDLE && voice.permissionStatus === 'granted' && (
+            <div className="flex justify-center">
+              <button
+                onClick={voice.startListening}
+                disabled={isProcessing || sosProcessing || emergencyVoiceActive}
+                className="w-full bg-aura-primary hover:bg-aura-calm text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ⚙️
-              </button>
-              <button 
-                onClick={signOut}
-                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
-                aria-label="Sign Out"
-              >
-                👋
+                <span>Start Aura Monitoring</span>
               </button>
             </div>
-          </header>
+          )}
 
           {/* Processing Indicator */}
           {isProcessing && (
@@ -371,38 +379,6 @@ const AppContent: React.FC = () => {
             </div>
           )}
 
-          {/* Main Content Area */}
-          <div className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
-            <div className="text-center py-8">
-              <h2 className="text-xl font-semibold mb-2">Welcome back, {userProfile?.fullName || 'User'}</h2>
-              <p className="text-gray-400 mb-6">How can I assist you today?</p>
-              
-              {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                <button 
-                  onClick={handleEmergencyActivation}
-                  disabled={sosProcessing}
-                  className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  {sosProcessing ? (
-                    <>
-                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                      <span>Activating...</span>
-                    </>
-                  ) : (
-                    <span>Emergency SOS</span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => setCurrentView('fake-call')}
-                  className="bg-gray-700 hover:bg-gray-600 py-3 px-4 rounded-lg font-medium transition-colors"
-                >
-                  Fake Call
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Safety Disclaimer */}
           <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
             <p className="text-xs text-gray-300 text-center">
@@ -413,6 +389,10 @@ const AppContent: React.FC = () => {
       </div>
     </div>
   );
+}
+  
+  // Fallback render to satisfy function return type
+  return null;
 };
 
 export default App;
