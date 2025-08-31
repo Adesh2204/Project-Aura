@@ -79,7 +79,7 @@ const App = () => {
 const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const { user, signIn, signOut, loading } = useAuth();
+  const { user, userProfile, signIn, signOut, loading } = useAuth();
   const { activateEmergency } = useEmergency();
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth'>('auth');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -88,8 +88,9 @@ const AppContent: React.FC = () => {
   // Mock aura state
   const aura = {
     triggerSOS: () => {},
-    setTranscription: () => {},
-    setAIResponse: () => {},
+    setTranscription: (text: string) => { console.log('Transcription:', text); },
+    setAIResponse: (response: string) => { console.log('AI Response:', response); },
+    updateSOSResult: (result: any) => {},
     sosAlertResult: { data: { contactsNotified: 0, timestamp: new Date().toISOString() } }
   };
 
@@ -137,7 +138,10 @@ const AppContent: React.FC = () => {
       const currentLocation = await location.getCurrentLocation();
       
       // Send SOS alert
-      const result = await apiService.triggerSOSAlert(userProfile.id, currentLocation);
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+      const result = await apiService.triggerSOSAlert(user.id, currentLocation);
       
       // Update SOS result
       aura.updateSOSResult(result);
@@ -163,23 +167,38 @@ const AppContent: React.FC = () => {
     if (!user?.id) return;
     
     const processAudio = async (audioBlob: Blob) => {
-      if (!userProfile) return;
+      if (!userProfile || !audioBlob) {
+        console.error('No user profile or audio data available');
+        return;
+      }
       
       try {
         setIsProcessing(true);
+        
+        // Ensure we have a valid Blob
+        if (!(audioBlob instanceof Blob)) {
+          throw new Error('Invalid audio data format');
+        }
+        
         // Process audio through the complete workflow
         const result = await apiService.processAudioWorkflow(audioBlob);
         
         // Update transcription and AI response
         if (aura) {
-          aura.updateTranscription(result.transcription);
-          aura.updateAiResponse(result.ai_response);
+          aura.setTranscription(result.transcription);
+          aura.setAIResponse(result.ai_response);
         }
         
         // Play the AI response
-        await apiService.playAudioResponse(result.ai_response);
+        if (result.ai_response) {
+          await apiService.playAudioResponse(result.ai_response);
+        }
       } catch (error) {
         console.error('Error processing audio:', error);
+        // Optionally update UI to show error to user
+        if (aura) {
+          aura.setAIResponse('Sorry, there was an error processing your request.');
+        }
       } finally {
         setIsProcessing(false);
       }
@@ -267,14 +286,32 @@ const AppContent: React.FC = () => {
     return <FakeCallScreen onEndCall={() => setCurrentView('home')} />;
   }
 
-  // Show authentication screen if user is not authenticated
+  // Main app content when user is authenticated
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Loading...</p>
-        <p className="mt-2 text-sm text-gray-500">This may take a few seconds...</p>
-          )}
+        {/* Main Content */}
+        <div className="space-y-4">
+          {/* Header */}
+          <header className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Aura Safety</h1>
+            <div className="flex space-x-4">
+              <button 
+                onClick={() => setCurrentView('settings')}
+                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+                aria-label="Settings"
+              >
+                ⚙️
+              </button>
+              <button 
+                onClick={signOut}
+                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+                aria-label="Sign Out"
+              >
+                👋
+              </button>
+            </div>
+          </header>
 
           {/* Processing Indicator */}
           {isProcessing && (
@@ -286,6 +323,38 @@ const AppContent: React.FC = () => {
             </div>
           )}
 
+          {/* Main Content Area */}
+          <div className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+            <div className="text-center py-8">
+              <h2 className="text-xl font-semibold mb-2">Welcome back, {userProfile?.fullName || 'User'}</h2>
+              <p className="text-gray-400 mb-6">How can I assist you today?</p>
+              
+              {/* Quick Actions */}
+              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                <button 
+                  onClick={handleEmergencyActivation}
+                  disabled={sosProcessing}
+                  className="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  {sosProcessing ? (
+                    <>
+                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      <span>Activating...</span>
+                    </>
+                  ) : (
+                    <span>Emergency SOS</span>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setCurrentView('fake-call')}
+                  className="bg-gray-700 hover:bg-gray-600 py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Fake Call
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Safety Disclaimer */}
           <div className="bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-700">
             <p className="text-xs text-gray-300 text-center">
@@ -296,10 +365,6 @@ const AppContent: React.FC = () => {
       </div>
     </div>
   );
-}
-  
-  // Fallback render to satisfy function return type
-  return null;
 };
 
 export default App;
