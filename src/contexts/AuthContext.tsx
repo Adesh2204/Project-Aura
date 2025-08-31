@@ -89,7 +89,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Authentication timeout')), 5000);
+        });
+
+        const authPromise = supabase.auth.getSession();
+        
+        const { data: { session }, error } = await Promise.race([authPromise, timeoutPromise]) as any;
         
         if (error) throw error;
         
@@ -97,7 +104,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(session?.user ?? null);
           
           if (session?.user) {
-            await fetchUserProfile(session.user.id);
+            try {
+              await fetchUserProfile(session.user.id);
+            } catch (profileError) {
+              console.warn('Failed to fetch user profile, continuing without profile:', profileError);
+              // Don't block the app if profile fetch fails
+            }
           }
         }
       } catch (error) {
@@ -107,6 +119,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             message: 'Failed to initialize authentication',
             code: 'auth_init_error'
           });
+          // Set loading to false even if auth fails so app can continue
+          setLoading(false);
         }
       } finally {
         if (isMounted) {
@@ -123,7 +137,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          try {
+            await fetchUserProfile(session.user.id);
+          } catch (profileError) {
+            console.warn('Failed to fetch user profile on auth change:', profileError);
+          }
         } else {
           setUserProfile(null);
         }
@@ -377,3 +395,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+

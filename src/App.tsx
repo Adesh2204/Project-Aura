@@ -104,70 +104,6 @@ const AppContent = () => {
     language: userProfile?.voiceActivationLanguage ?? 'en-US'
   });
 
-  // Handle authentication state changes
-  useEffect(() => {
-    console.log('App auth state changed:', { loading, user: !!user, userProfile: !!userProfile });
-    
-    if (loading) return;
-    
-    if (user && userProfile) {
-      console.log('User authenticated, checking onboarding status');
-      // User is authenticated, check if onboarding is complete
-      if (storageService.isOnboardingComplete()) {
-        console.log('Onboarding complete, setting view to home');
-        setCurrentView('home');
-      } else {
-        console.log('Onboarding incomplete, setting view to permissions');
-        setCurrentView('permissions');
-      }
-    } else {
-      console.log('User not authenticated, setting view to auth');
-      // User is not authenticated
-      setCurrentView('auth');
-    }
-  }, [user, userProfile, loading]);
-
-  // Show loading state
-  if (loading) {
-    console.log('Showing loading state');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show authentication screen if user is not authenticated
-  if (currentView === 'auth') {
-    console.log('Rendering auth screen, mode:', authMode);
-    return (
-      <div>
-        {authMode === 'login' ? (
-          <Login onSwitchToSignUp={() => setAuthMode('signup')} />
-        ) : (
-          <SignUp onSwitchToLogin={() => setAuthMode('login')} />
-        )}
-      </div>
-    );
-  }
-
-  // Check if onboarding is complete and handle voice activation changes
-  useEffect(() => {
-    if (!userProfile) return;
-    
-    if (storageService.isOnboardingComplete()) {
-      setCurrentView('home');
-    }
-    
-    // Request microphone permission if voice activation is enabled
-    if (userProfile.voiceActivationEnabled && voice.permissionStatus === 'prompt') {
-      voice.requestPermission();
-    }
-  }, [userProfile?.voiceActivationEnabled]);
-
   // Handle audio processing workflow
   useEffect(() => {
     if (!userProfile) return;
@@ -214,25 +150,6 @@ const AppContent = () => {
 
     processAudio();
   }, [audio.audioBlob, aura.isListening, userProfile]);
-
-
-
-  // const handleEmergencyVoiceActivate = async () => {
-  //   try {
-  //     // Trigger emergency voice state
-  //     aura.triggerEmergencyVoice();
-  //     setEmergencyVoiceActive(true);
-  //     
-  //     // Navigate to fake call screen
-  //     setCurrentView('fake-call');
-  //     
-  //     // Send silent location alert to emergency contacts
-  //     const currentLocation = await location.getCurrentLocation();
-  //     await apiService.triggerSmsAlert(userProfile.id, currentLocation);
-  //   } catch (error) {
-  //     console.error('Error activating emergency voice:', error);
-  //   }
-  // };
 
   const handleCallAnswered = async () => {
     try {
@@ -300,6 +217,42 @@ const AppContent = () => {
     }
   };
 
+  // Handle authentication state changes
+  useEffect(() => {
+    console.log('App auth state changed:', { loading, user: !!user, userProfile: !!userProfile });
+    
+    if (loading) return;
+    
+    if (user && userProfile) {
+      console.log('User authenticated, checking onboarding status');
+      // User is authenticated, check if onboarding is complete
+      if (storageService.isOnboardingComplete()) {
+        console.log('Onboarding complete, setting view to home');
+        setCurrentView('home');
+      } else {
+        console.log('Onboarding incomplete, setting view to permissions');
+        setCurrentView('permissions');
+      }
+    } else {
+      console.log('User not authenticated, setting view to auth');
+      // User is not authenticated
+      setCurrentView('auth');
+    }
+  }, [user, userProfile, loading]);
+
+  // Show loading state
+  if (loading) {
+    console.log('Showing loading state');
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Render permission prompt
   if (currentView === 'permissions') {
     if (!userProfile) {
@@ -352,6 +305,19 @@ const AppContent = () => {
         onEndCall={handleEndCall}
         onCallAnswered={handleCallAnswered}
       />
+    );
+  }
+
+  // Show authentication screen if user is not authenticated
+  if (currentView === 'auth') {
+    return (
+      <div>
+        {authMode === 'login' ? (
+          <Login onSwitchToSignUp={() => setAuthMode('signup')} />
+        ) : (
+          <SignUp onSwitchToLogin={() => setAuthMode('login')} />
+        )}
+      </div>
     );
   }
 
