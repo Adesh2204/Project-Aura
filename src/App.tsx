@@ -58,6 +58,18 @@ const AppContent = () => {
   const [emergencyVoiceActive, setEmergencyVoiceActive] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   
+  // Add timeout to prevent infinite loading
+  useEffect(() => {
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.log('Loading timeout reached, forcing to auth view');
+        setCurrentView('auth');
+      }, 10000); // 10 second timeout
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
+  
   // Define handleSOSActivate function
   const handleSOSActivate = async () => {
     if (!userProfile) {
@@ -221,7 +233,10 @@ const AppContent = () => {
   useEffect(() => {
     console.log('App auth state changed:', { loading, user: !!user, userProfile: !!userProfile });
     
-    if (loading) return;
+    if (loading) {
+      console.log('Still loading, waiting...');
+      return;
+    }
     
     if (user) {
       console.log('User authenticated, checking profile and onboarding status');
@@ -235,10 +250,9 @@ const AppContent = () => {
           setCurrentView('permissions');
         }
       } else {
-        console.log('User authenticated but no profile, staying in auth view');
-        // User is authenticated but profile is still loading or doesn't exist
-        // This will be handled by the AuthContext which will create a profile
-        setCurrentView('auth');
+        console.log('User authenticated but no profile yet, waiting for profile...');
+        // User is authenticated but profile is still loading
+        // Don't change view yet, wait for profile to load
       }
     } else {
       console.log('User not authenticated, setting view to auth');
@@ -247,14 +261,16 @@ const AppContent = () => {
     }
   }, [user, userProfile, loading]);
 
-  // Show loading state
+  // Show loading state with timeout fallback
   if (loading) {
     console.log('Showing loading state');
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-2 text-sm text-gray-500">This may take a few seconds...</p>
         </div>
       </div>
     );
@@ -319,6 +335,11 @@ const AppContent = () => {
   if (currentView === 'auth') {
     return (
       <div>
+        {/* Demo mode notification */}
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg">
+          <p className="text-sm font-medium">Demo Mode - Using Mock Authentication</p>
+        </div>
+        
         {authMode === 'login' ? (
           <Login onSwitchToSignUp={() => setAuthMode('signup')} />
         ) : (

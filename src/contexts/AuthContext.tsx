@@ -1,7 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { supabaseService } from '../services/supabaseService';
-import { supabase } from '../lib/supabase';
 import { UserProfile, EmergencyContact } from '../types';
 
 interface AuthError {
@@ -59,64 +57,72 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
 
-  const fetchUserProfile = useCallback(async (userId: string) => {
-    try {
-      const profile = await supabaseService.getUserById(userId);
-      if (profile) {
-        const userProfile: UserProfile = {
-          id: profile.id,
-          fullName: profile.full_name || '',
-          phoneNumber: profile.phone_number || '',
-          emergencyContacts: profile.emergency_contacts || [],
-          voiceActivationEnabled: profile.voice_activation_enabled || false,
-          voiceActivationLanguage: profile.voice_activation_language || 'en-US'
-        };
-        setUserProfile(userProfile);
-        return userProfile;
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      setError({
-        message: 'Failed to load user profile',
-        code: 'profile_fetch_error'
-      });
-    }
-    return null;
-  }, []);
-
   useEffect(() => {
     let isMounted = true;
 
     const initializeAuth = async () => {
       try {
         console.log('Initializing authentication...');
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Authentication timeout')), 5000);
-        });
-
-        const authPromise = supabase.auth.getSession();
         
-        const { data: { session }, error } = await Promise.race([authPromise, timeoutPromise]) as any;
+        // For now, always use mock authentication for development
+        console.warn('Using mock authentication for development');
         
-        if (error) throw error;
-        
-        console.log('Session check result:', { session: !!session, user: !!session?.user });
+        // Create a mock user session
+        const mockUser = {
+          id: 'mock-user-id',
+          email: 'demo@aura.com',
+          user_metadata: {},
+          app_metadata: {},
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          role: 'authenticated',
+          email_confirmed_at: new Date().toISOString(),
+          phone: null,
+          confirmed_at: new Date().toISOString(),
+          last_sign_in_at: new Date().toISOString(),
+          email_change_confirm_status: 0,
+          banned_until: null,
+          reauthentication_sent_at: null,
+          recovery_sent_at: null,
+          email_change_sent_at: null,
+          new_email: null,
+          invited_at: null,
+          confirmation_sent_at: null,
+          unconfirmed_email: null,
+          phone_change: null,
+          phone_change_sent_at: null,
+          email_change: null,
+          factors: null
+        };
         
         if (isMounted) {
-          setUser(session?.user ?? null);
+          console.log('Setting mock user and profile...');
+          setUser(mockUser as any);
           
-          if (session?.user) {
-            console.log('User found in session, fetching profile...');
-            try {
-              const profile = await fetchUserProfile(session.user.id);
-              console.log('Profile fetched:', !!profile);
-            } catch (profileError) {
-              console.warn('Failed to fetch user profile, continuing without profile:', profileError);
-              // Don't block the app if profile fetch fails
-            }
-          }
+          // Create a mock profile
+          const mockProfile: UserProfile = {
+            id: mockUser.id,
+            fullName: 'Demo User',
+            phoneNumber: '+1234567890',
+            emergencyContacts: [
+              { id: '1', name: 'Emergency Services', phoneNumber: '911' }
+            ],
+            voiceActivationEnabled: false,
+            voiceActivationLanguage: 'en-US'
+          };
+          setUserProfile(mockProfile);
+          
+          // Also save to storage service for consistency
+          import('../services/storageService').then(({ storageService }) => {
+            storageService.saveUserProfile(mockProfile);
+            storageService.saveEmergencyContacts(mockProfile.emergencyContacts);
+          });
+          
+          console.log('Mock authentication complete, setting loading to false');
+          setLoading(false);
         }
+        return;
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (isMounted) {
@@ -135,77 +141,65 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', { event, user: !!session?.user });
-      if (isMounted) {
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          try {
-            const profile = await fetchUserProfile(session.user.id);
-            console.log('Profile fetched on auth change:', !!profile);
-          } catch (profileError) {
-            console.warn('Failed to fetch user profile on auth change:', profileError);
-          }
-        } else {
-          setUserProfile(null);
-        }
-      }
-    });
     
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, []);
 
   const signUp = async (userData: SignUpData): Promise<AuthResponse> => {
     setLoading(true);
     setError(null);
     
     try {
-      // 1. Sign up the user
-      const { data: { user: newUser }, error: signUpError } = await supabaseService.signUp(
-        userData.email, 
-        userData.password
-      );
+      // Always use mock sign up for development
+      console.log('Using mock sign up for development');
       
-      if (signUpError || !newUser) {
-        const error = signUpError || { message: 'Failed to create user' };
-        throw error;
-      }
-
-      // 2. Create user profile
-      const profileData = {
-        id: newUser.id,
+      // Mock successful sign up
+      const mockUser = {
+        id: 'mock-user-id',
         email: userData.email,
-        full_name: userData.fullName,
-        phone_number: userData.phoneNumber
+        user_metadata: {},
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        role: 'authenticated',
+        email_confirmed_at: new Date().toISOString(),
+        phone: null,
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        email_change_confirm_status: 0,
+        banned_until: null,
+        reauthentication_sent_at: null,
+        recovery_sent_at: null,
+        email_change_sent_at: null,
+        new_email: null,
+        invited_at: null,
+        confirmation_sent_at: null,
+        unconfirmed_email: null,
+        phone_change: null,
+        phone_change_sent_at: null,
+        email_change: null,
+        factors: null
       };
-
-      const createdProfile = await supabaseService.createUser(profileData);
-      if (!createdProfile) {
-        throw new Error('Failed to create user profile');
-      }
-
-      // 3. Handle emergency contacts
-      const contacts = userData.emergencyContacts?.length 
-        ? userData.emergencyContacts 
-        : [{ name: 'Emergency Services', phoneNumber: '911' }];
-
-      await Promise.all(
-        contacts.map(contact => 
-          supabaseService.createEmergencyContact(newUser.id, contact)
-        )
-      );
-
-      // 4. Fetch complete profile
-      const profile = await fetchUserProfile(newUser.id);
+      
+      const mockProfile: UserProfile = {
+        id: mockUser.id,
+        fullName: userData.fullName,
+        phoneNumber: userData.phoneNumber,
+        emergencyContacts: userData.emergencyContacts || [
+          { id: '1', name: 'Emergency Services', phoneNumber: '911' }
+        ],
+        voiceActivationEnabled: false,
+        voiceActivationLanguage: 'en-US'
+      };
+      
+      setUser(mockUser as any);
+      setUserProfile(mockProfile);
       
       return { 
-        data: { user: newUser, profile },
+        data: { user: mockUser, profile: mockProfile },
         error: null 
       };
       
@@ -228,41 +222,64 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     try {
       console.log('Signing in user:', email);
-      const { data: { user: signedInUser }, error: signInError } = await supabaseService.signIn(email, password);
       
-      if (signInError || !signedInUser) {
-        throw signInError || new Error('Failed to sign in');
-      }
-
-      console.log('User signed in successfully:', signedInUser.id);
-
-      // Fetch user profile
-      const profile = await fetchUserProfile(signedInUser.id);
-      console.log('Profile fetch result:', !!profile);
+      // Always use mock authentication for development
+      console.log('Using mock authentication for development');
       
-      if (!profile) {
-        console.log('No profile found, creating default profile...');
-        // If no profile exists, create one with default values
-        await supabaseService.createUser({
-          id: signedInUser.id,
-          email: signedInUser.email || email,
-          full_name: '',
-          phone_number: ''
-        });
-        
-        // Create default emergency contact
-        await supabaseService.createEmergencyContact(signedInUser.id, {
-          name: 'Emergency Services',
-          phoneNumber: '911'
-        });
-        
-        // Fetch the newly created profile
-        await fetchUserProfile(signedInUser.id);
-      }
-
-      console.log('Sign in completed successfully');
+      // Mock successful sign in
+      const mockUser = {
+        id: 'mock-user-id',
+        email: email,
+        user_metadata: {},
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        role: 'authenticated',
+        email_confirmed_at: new Date().toISOString(),
+        phone: null,
+        confirmed_at: new Date().toISOString(),
+        last_sign_in_at: new Date().toISOString(),
+        email_change_confirm_status: 0,
+        banned_until: null,
+        reauthentication_sent_at: null,
+        recovery_sent_at: null,
+        email_change_sent_at: null,
+        new_email: null,
+        invited_at: null,
+        confirmation_sent_at: null,
+        unconfirmed_email: null,
+        phone_change: null,
+        phone_change_sent_at: null,
+        email_change: null,
+        factors: null
+      };
+      
+      const mockProfile: UserProfile = {
+        id: mockUser.id,
+        fullName: 'Demo User',
+        phoneNumber: '+1234567890',
+        emergencyContacts: [
+          { id: '1', name: 'Emergency Services', phoneNumber: '911' }
+        ],
+        voiceActivationEnabled: false,
+        voiceActivationLanguage: 'en-US'
+      };
+      
+      console.log('Mock sign in successful, setting user and profile...');
+      setUser(mockUser as any);
+      setUserProfile(mockProfile);
+      
+      // Also save to storage service for consistency
+      import('../services/storageService').then(({ storageService }) => {
+        storageService.saveUserProfile(mockProfile);
+        storageService.saveEmergencyContacts(mockProfile.emergencyContacts);
+      });
+      
+      console.log('Mock sign in complete');
+      
       return { 
-        data: { user: signedInUser, profile },
+        data: { user: mockUser, profile: mockProfile },
         error: null 
       };
       
@@ -284,12 +301,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        throw error;
-      }
-      
+      // Simple mock sign out
       setUser(null);
       setUserProfile(null);
       
@@ -334,46 +346,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      // DYNAMIC PAYLOAD CONSTRUCTION - FIXES THE DATA LOSS BUG
-      // Only include fields that are actually provided and not undefined
-      const updatePayload: any = {};
-      
-      if (updates.fullName !== undefined) {
-        updatePayload.full_name = updates.fullName;
-      }
-      
-      if (updates.phoneNumber !== undefined) {
-        updatePayload.phone_number = updates.phoneNumber;
-      }
-      
-      if (updates.voiceActivationEnabled !== undefined) {
-        updatePayload.voice_activation_enabled = updates.voiceActivationEnabled;
-      }
-      
-      if (updates.voiceActivationLanguage !== undefined) {
-        updatePayload.voice_activation_language = updates.voiceActivationLanguage;
-      }
-      
-      // Only proceed if there are actual updates to make
-      if (Object.keys(updatePayload).length === 0) {
-        return { 
-          data: { updated: false, message: 'No updates provided' },
-          error: null 
-        };
-      }
-
-      // Update in database with safe payload
-      const updatedProfile = await supabaseService.updateUser(user.id, updatePayload);
-      
-      if (!updatedProfile) {
-        throw new Error('Failed to update user profile');
-      }
-      
       // Update local state with the new values
       setUserProfile(prev => prev ? { ...prev, ...updates } : null);
       
+      // Also save to storage service
+      import('../services/storageService').then(({ storageService }) => {
+        const updatedProfile = { ...userProfile, ...updates };
+        storageService.saveUserProfile(updatedProfile);
+        if (updates.emergencyContacts) {
+          storageService.saveEmergencyContacts(updates.emergencyContacts);
+        }
+      });
+      
       return { 
-        data: { updated: true, profile: updatedProfile },
+        data: { updated: true, profile: updates },
         error: null 
       };
       
