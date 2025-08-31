@@ -47,7 +47,7 @@ const App = () => {
 const AppContent = () => {
   const navigate = useNavigate();
   const location = useGeoLocation();
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, updateUserProfile } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'settings' | 'permissions' | 'sos-confirmation' | 'fake-call' | 'monitoring' | 'auth'>(
     'auth'
   );
@@ -275,16 +275,20 @@ const AppContent = () => {
     }
   };
 
-  const handleProfileUpdate = (updates: Partial<UserProfile>) => {
+  const handleProfileUpdate = async (updates: Partial<UserProfile>) => {
     if (!userProfile) return;
     
-    const updatedProfile = { ...userProfile, ...updates };
-    setUserProfile(updatedProfile);
-    storageService.saveUserProfile(updatedProfile);
-    
-    // Update emergency contacts separately
-    if (updates.emergencyContacts) {
-      storageService.saveEmergencyContacts(updates.emergencyContacts);
+    try {
+      const updatedProfile = { ...userProfile, ...updates };
+      await updateUserProfile(updates);
+      storageService.saveUserProfile(updatedProfile);
+      
+      // Update emergency contacts separately
+      if (updates.emergencyContacts) {
+        storageService.saveEmergencyContacts(updates.emergencyContacts);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
     }
   };
 

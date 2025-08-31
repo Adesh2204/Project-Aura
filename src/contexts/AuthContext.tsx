@@ -91,9 +91,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (error) throw error;
+        
         if (isMounted) {
-          if (error) throw error;
-          
           setUser(session?.user ?? null);
           
           if (session?.user) {
