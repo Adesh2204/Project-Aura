@@ -1,16 +1,41 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabaseService } from '../services/supabaseService';
 import { supabase } from '../lib/supabase';
-import { UserProfile } from '../types';
+import { UserProfile, EmergencyContact } from '../types';
+
+interface AuthError {
+  message: string;
+  code?: string;
+}
+
+interface AuthResponse<T = any> {
+  data: T | null;
+  error: AuthError | null;
+}
+
+interface SignUpData {
+  email: string;
+  password: string;
+  fullName: string;
+  phoneNumber: string;
+  emergencyContacts?: EmergencyContact[];
+}
+
+interface SignInData {
+  email: string;
+  password: string;
+}
 
 interface AuthContextType {
-  user: any;
+  user: any; // Consider replacing 'any' with a proper User type from Supabase
   userProfile: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string, userData: Partial<UserProfile>) => Promise<{ user: any; error: any }>;
-  signIn: (email: string, password: string) => Promise<{ user: any; error: any }>;
-  signOut: () => Promise<void>;
-  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  signUp: (data: SignUpData) => Promise<AuthResponse>;
+  signIn: (data: SignInData) => Promise<AuthResponse>;
+  signOut: () => Promise<AuthResponse<void>>;
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<AuthResponse>;
+  error: AuthError | null;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,173 +55,186 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<AuthError | null>(null);
+
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    try {
+      const profile = await supabaseService.getUserById(userId);
+      if (profile) {
+        const userProfile: UserProfile = {
+          id: profile.id,
+          email: profile.email || '',
+          fullName: profile.full_name || '',
+          phoneNumber: profile.phone_number || '',
+          emergencyContacts: profile.emergency_contacts || [],
+          voiceActivationEnabled: profile.voice_activation_enabled || false,
+          voiceActivationLanguage: profile.voice_activation_language || 'en-US'
+        };
+        setUserProfile(userProfile);
+        return userProfile;
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      setError({
+        message: 'Failed to load user profile',
+        code: 'profile_fetch_error'
+      });
+    }
+    return null;
+  }, []);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
+    let isMounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    const initializeAuth = async () => {
       try {
-        const currentUser = await supabaseService.getCurrentUser();
-        setUser(currentUser);
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (currentUser) {
-          try {
-            // Fetch user profile from database
-            const profile = await supabaseService.getUserById(currentUser.id);
-            if (profile) {
-              setUserProfile({
-                id: profile.id,
-                email: profile.email,
-                fullName: profile.full_name,
-                phoneNumber: profile.phone_number,
-                emergencyContacts: profile.emergency_contacts || [],
-                voiceActivationEnabled: false,
-                voiceActivationLanguage: 'en-US'
-              });
-            }
-          } catch (profileError) {
-            console.error('Error fetching user profile:', profileError);
-            // Continue without profile for now
+        if (isMounted) {
+          if (error) throw error;
+          
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            await fetchUserProfile(session.user.id);
           }
         }
       } catch (error) {
-        console.error('Error getting initial session:', error);
-        // This is expected for new users or when not authenticated
+        console.error('Auth initialization error:', error);
+        if (isMounted) {
+          setError({
+            message: 'Failed to initialize authentication',
+            code: 'auth_init_error'
+          });
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    getInitialSession();
+    initializeAuth();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change event:', event, session?.user?.id);
+    // Set up auth state change listener
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (isMounted) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          try {
-            // Fetch user profile
-            const profile = await supabaseService.getUserById(session.user.id);
-            if (profile) {
-              setUserProfile({
-                id: profile.id,
-                email: profile.email,
-                fullName: profile.full_name,
-                phoneNumber: profile.phone_number,
-                emergencyContacts: profile.emergency_contacts || [],
-                voiceActivationEnabled: false,
-                voiceActivationLanguage: 'en-US'
-              });
-            } else {
-              console.log('No profile found for user, will create one on first action');
-            }
-          } catch (profileError) {
-            console.error('Error fetching user profile on auth change:', profileError);
-            // Continue without profile for now
-          }
+          await fetchUserProfile(session.user.id);
         } else {
           setUserProfile(null);
         }
-        
-        setLoading(false);
       }
-    );
+    });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    subscription = data;
+    
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [fetchUserProfile]);
 
-  const signUp = async (userData: {
-    email: string;
-    password: string;
-    fullName: string;
-    phoneNumber: string;
-    emergencyContacts?: { name: string; phoneNumber: string; }[];
-  }) => {
+  const signUp = async (userData: SignUpData): Promise<AuthResponse> => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      const { data: { user: newUser }, error } = await supabaseService.signUp(userData.email, userData.password);
+      // 1. Sign up the user
+      const { data: { user: newUser }, error: signUpError } = await supabaseService.signUp(
+        userData.email, 
+        userData.password
+      );
       
-      if (error || !newUser) {
-        return { user: null, error };
+      if (signUpError || !newUser) {
+        const error = signUpError || { message: 'Failed to create user' };
+        throw error;
       }
-  
-      if (newUser) {
-        try {
-          // Create user profile in database
-          const profile = await supabaseService.createUser({
-            id: newUser.id,
-            email: newUser.email!,
-            full_name: userData.fullName || '',
-            phone_number: userData.phoneNumber || ''
-          });
-  
-          if (profile) {
-            // Create default emergency contact if provided
-            if (userData.emergencyContacts && userData.emergencyContacts.length > 0) {
-              for (const contact of userData.emergencyContacts) {
-                await supabaseService.createEmergencyContact(newUser.id, contact);
-              }
-            } else {
-              // Create a default emergency contact
-              await supabaseService.createEmergencyContact(newUser.id, {
-                name: 'Emergency Services',
-                phoneNumber: '911'
-              });
-            }
-  
-            // Fetch complete user profile with contacts
-            const completeProfile = await supabaseService.getUserById(newUser.id);
-            if (completeProfile) {
-              setUserProfile({
-                id: completeProfile.id,
-                email: completeProfile.email || '',
-                fullName: completeProfile.full_name,
-                phoneNumber: completeProfile.phone_number,
-                emergencyContacts: completeProfile.emergency_contacts,
-                voiceActivationEnabled: false,
-                voiceActivationLanguage: 'en-US'
-              });
-            }
-          }
-        } catch (profileError) {
-          console.error('Error creating user profile:', profileError);
-        }
-      }
-  
-      return { user: newUser, error: null };
-    } catch (error) {
-      console.error('Error in signUp:', error);
-      return { user: null, error };
+
+      // 2. Create user profile
+      const profileData = {
+        id: newUser.id,
+        email: userData.email,
+        full_name: userData.fullName,
+        phone_number: userData.phoneNumber
+      };
+
+      const { error: profileError } = await supabaseService.createUser(profileData);
+      if (profileError) throw profileError;
+
+      // 3. Handle emergency contacts
+      const contacts = userData.emergencyContacts?.length 
+        ? userData.emergencyContacts 
+        : [{ name: 'Emergency Services', phoneNumber: '911' }];
+
+      await Promise.all(
+        contacts.map(contact => 
+          supabaseService.createEmergencyContact(newUser.id, contact)
+        )
+      );
+
+      // 4. Fetch complete profile
+      const profile = await fetchUserProfile(newUser.id);
+      
+      return { 
+        data: { user: newUser, profile },
+        error: null 
+      };
+      
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      const authError: AuthError = {
+        message: error.message || 'Failed to sign up',
+        code: error.code
+      };
+      setError(authError);
+      return { data: null, error: authError };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async ({ email, password }: SignInData): Promise<AuthResponse> => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      const { user: signedInUser, error } = await supabaseService.signIn(email, password);
+      const { user: signedInUser, error: signInError } = await supabaseService.signIn(email, password);
       
-      if (signedInUser && !error) {
-        // Fetch user profile with emergency contacts
-        const profile = await supabaseService.getUserById(signedInUser.id);
-        if (profile) {
-          setUserProfile({
-            id: profile.id,
-            email: profile.email,
-            fullName: profile.full_name,
-            phoneNumber: profile.phone_number,
-            emergencyContacts: profile.emergency_contacts,
-            voiceActivationEnabled: false,
-            voiceActivationLanguage: 'en-US'
-          });
-        }
-      } else {
-        // If no profile exists, create one with default emergency contact
-        const newProfile = await supabaseService.createUser({
+      if (signInError || !signedInUser) {
+        throw signInError || new Error('Failed to sign in');
+      }
+
+      // Fetch user profile
+      const profile = await fetchUserProfile(signedInUser.id);
+      
+      if (!profile) {
+        // If no profile exists, create one with default values
+        await supabaseService.createUser({
           id: signedInUser.id,
-          email: signedInUser.email!,
+          email: signedInUser.email || email,
           full_name: '',
           phone_number: ''
         });
+        
+        // Create default emergency contact
+        await supabaseService.createEmergencyContact(signedInUser.id, {
+          name: 'Emergency Services',
+          phoneNumber: '911'
+        });
+        
+        // Fetch the newly created profile
+        await fetchUserProfile(signedInUser.id);
+      }
+
+      return { 
+        data: { user: signedInUser, profile: userProfile },
+        error: null 
+      };
         
         if (newProfile) {
           await supabaseService.createEmergencyContact(signedInUser.id, {
@@ -222,39 +260,75 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return { user: signedInUser, error };
   } catch (error) {
-    console.error('Error in signIn:', error);
-    return { user: null, error };
-  }
-};
-
-  const signOut = async () => {
     try {
-      await supabaseService.signOut();
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
       setUser(null);
       setUserProfile(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
+      
+      return { data: undefined, error: null };
+      
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+      const authError: AuthError = {
+        message: error.message || 'Failed to sign out',
+        code: error.code
+      };
+      setError(authError);
+      return { data: undefined, error: authError };
+    } finally {
+      setLoading(false);
     }
   };
+  
+  const clearError = () => setError(null);
 
-  const updateUserProfile = async (updates: Partial<UserProfile>) => {
-    if (!userProfile?.id) return;
-
+  const updateUserProfile = async (updates: Partial<UserProfile>): Promise<AuthResponse> => {
+    if (!user) {
+      const error: AuthError = { message: 'User not authenticated' };
+      setError(error);
+      return { data: null, error };
+    }
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      const updatedProfile = await supabaseService.updateUser(userProfile.id, {
+      // Update in database
+      const { error: updateError } = await supabaseService.updateUser(user.id, {
         full_name: updates.fullName,
         phone_number: updates.phoneNumber,
-        emergency_contacts: updates.emergencyContacts
+        voice_activation_enabled: updates.voiceActivationEnabled,
+        voice_activation_language: updates.voiceActivationLanguage
       });
-
-      if (updatedProfile) {
-        setUserProfile(prev => prev ? {
-          ...prev,
-          ...updates
-        } : null);
-      }
-    } catch (error) {
-      console.error('Error updating user profile:', error);
+      
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setUserProfile(prev => ({
+        ...prev!,
+        ...updates
+      }));
+      
+      return { 
+        data: { updated: true },
+        error: null 
+      };
+      
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      const authError: AuthError = {
+        message: error.message || 'Failed to update profile',
+        code: error.code
+      };
+      setError(authError);
+      return { data: null, error: authError };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -262,10 +336,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     userProfile,
     loading,
+    error,
     signUp,
     signIn,
     signOut,
-    updateUserProfile
+    updateUserProfile,
+    clearError
   };
 
   return (
