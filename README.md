@@ -1,65 +1,50 @@
 # Project Aura – Personal Safety Assistant
 
-**Project Aura** is a modern web application aimed at enhancing personal safety with a thoughtful combination of intuitive design and robust backend support. It empowers users to build a personalized safety net through features like emergency contacts, voice-activated assistance, and a responsive UI.
+**Project Aura** is a modern web application designed to improve **personal safety**.  
+It allows users to manage emergency contacts, store profile details, and trigger **voice-activated emergency support** — all in a clean, responsive interface.
 
 ---
 
-##  Table of Contents
+## 🚀 Features
 
-- [Overview](#overview)  
-- [Key Features](#key-features)  
-- [Tech Stack](#tech-stack)  
-- [Getting Started](#getting-started)  
-  - [Prerequisites](#prerequisites)  
-  - [Installation & Setup](#installation--setup)  
-  - [Environment Variables](#environment-variables)  
-  - [Usage](#usage)  
-- [Project Status & Roadmap](#project-status--roadmap)  
-- [Acknowledgements](#acknowledgements)  
-- [Contributors](#contributors)
+- 🔐 **Secure Authentication** (Supabase Auth)  
+- 👤 **User Profile Management** (name, phone, details)  
+- 📞 **Emergency Contacts** (add trusted people + default “911”)  
+- 🎙 **Voice-Activated Assistance** (custom commands)  
+- 📱 **Responsive UI** for mobile & desktop  
 
 ---
 
-## Overview
+## 🛠 Tech Stack
 
-Project Aura is designed to provide peace of mind by integrating essential safety tools within a sleek, user-friendly interface. Users can sign up quickly, manage their safety profile, set emergency contacts, and trigger voice-activated alerts when needed the most.  
-:contentReference[oaicite:0]{index=0}
-
----
-
-## Key Features
-
-- **Secure User Authentication**: Seamless sign-up, login, and session handling powered by Supabase Auth.  
-- **Profile Management**: Manage personal details—full name, phone number, and more.  
-- **Emergency Contacts**: Add trusted contacts and auto-include a default “911” option.  
-- **Voice-Activated Assistance**: Supports custom voice commands for hands-free emergency support.  
-- **Responsive UI**: Polished design for optimal use across devices.  
-:contentReference[oaicite:1]{index=1}
+- **Frontend**: React (Vite) + TypeScript + Tailwind CSS  
+- **Backend**: Supabase (Auth, Database, Storage)  
 
 ---
 
-## Tech Stack
+## ⚡ Installation, Setup & Run
 
-- **Frontend**:
-  - React (Vite) for blazing-fast development
-  - TypeScript for type safety
-  - Tailwind CSS (customizable)  
-- **Backend**:
-  - Supabase for authentication, user management, and database storage  
-:contentReference[oaicite:2]{index=2}
+Follow these steps to get the project running locally:
 
----
+```bash
+# 1. Clone the repository
+git clone https://github.com/Adesh2204/Project-Aura.git
+cd Project-Aura
 
-## Getting Started
+# 2. Install dependencies
+npm install
+# or
+yarn
 
-### Prerequisites
+# 3. Create environment file
+# In the root folder, create a file named `.env.local`
+# and add the following :
 
-Ensure you have the following installed:
-- [Node.js](https://nodejs.org/) (includes npm) or yarn.
+VITE_SUPABASE_URL=https://ppqcrsmtijnbbxqizgvr.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBwcWNyc210aWpuYmJ4cWl6Z3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwMzAwMTcsImV4cCI6MjA3MTYwNjAxN30.84AC8pI219Glh4aj22wbqLi-n-zdFO6QYsrHS0q9gHc
 
-### Installation & Setup
+# 4. Start the development server
+npm run dev
+# or
+yarn dev
 
-1. Clone the repository:  
-   ```bash
-   git clone https://github.com/Adesh2204/Project-Aura.git
-   cd Project-Aura
