@@ -1,5 +1,5 @@
 import { supabase, Database } from '../lib/supabase';
-import { UserProfile, Location } from '../types';
+import { EmergencyContact } from '../types';
 
 type User = Database['public']['Tables']['users']['Row'];
 type UserInsert = Database['public']['Tables']['users']['Insert'];
@@ -9,13 +9,27 @@ type SOSAlert = Database['public']['Tables']['sos_alerts']['Row'];
 type SOSAlertInsert = Database['public']['Tables']['sos_alerts']['Insert'];
 type SOSAlertUpdate = Database['public']['Tables']['sos_alerts']['Update'];
 
-type EmergencyContact = Database['public']['Tables']['emergency_contacts']['Row'];
+type EmergencyContactDB = Database['public']['Tables']['emergency_contacts']['Row'];
 type EmergencyContactInsert = Database['public']['Tables']['emergency_contacts']['Insert'];
 
-export class SupabaseService {
-  /**
-   * User Management
-   */
+export interface UserWithContacts extends User {
+  emergency_contacts: EmergencyContact[];
+}
+
+class SupabaseService {
+  // Authentication
+  async signUp(email: string, password: string) {
+    return await supabase.auth.signUp({ email, password });
+  }
+
+  async signIn(email: string, password: string) {
+    return await supabase.auth.signInWithPassword({ email, password });
+  }
+
+  async signOut() {
+    return await supabase.auth.signOut();
+  }
+
   async createUser(userData: UserInsert): Promise<User | null> {
     try {
       const { data, error } = await supabase
@@ -32,16 +46,36 @@ export class SupabaseService {
     }
   }
 
-  async getUserById(userId: string): Promise<User | null> {
+  async getUserById(userId: string): Promise<UserWithContacts | null> {
     try {
-      const { data, error } = await supabase
+      // Get user data
+      const { data: user, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      return data;
+      if (userError) throw userError;
+
+      // Get emergency contacts
+      const { data: contacts, error: contactsError } = await supabase
+        .from('emergency_contacts')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (contactsError) throw contactsError;
+
+      // Transform contacts to match EmergencyContact interface
+      const emergencyContacts: EmergencyContact[] = (contacts || []).map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        phoneNumber: contact.phone_number
+      }));
+
+      return {
+        ...user,
+        emergency_contacts: emergencyContacts
+      };
     } catch (error) {
       console.error('Error fetching user:', error);
       return null;
@@ -65,25 +99,65 @@ export class SupabaseService {
     }
   }
 
-  async getUserByEmail(email: string): Promise<User | null> {
+  // Emergency Contacts
+  async createEmergencyContact(userId: string, contact: Omit<EmergencyContact, 'id'>): Promise<EmergencyContactDB | null> {
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
+        .from('emergency_contacts')
+        .insert({
+          user_id: userId,
+          name: contact.name,
+          phone_number: contact.phoneNumber,
+          relationship: 'Emergency Contact'
+        })
+        .select()
         .single();
 
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Error fetching user by email:', error);
+      console.error('Error creating emergency contact:', error);
       return null;
     }
   }
 
-  /**
-   * SOS Alerts
-   */
+  async updateEmergencyContact(contactId: string, updates: Partial<EmergencyContact>): Promise<EmergencyContactDB | null> {
+    try {
+      const updateData: any = {};
+      if (updates.name) updateData.name = updates.name;
+      if (updates.phoneNumber) updateData.phone_number = updates.phoneNumber;
+
+      const { data, error } = await supabase
+        .from('emergency_contacts')
+        .update(updateData)
+        .eq('id', contactId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error updating emergency contact:', error);
+      return null;
+    }
+  }
+
+  async deleteEmergencyContact(contactId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('emergency_contacts')
+        .delete()
+        .eq('id', contactId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error deleting emergency contact:', error);
+      return false;
+    }
+  }
+
+  // SOS Alerts
   async createSOSAlert(alertData: SOSAlertInsert): Promise<SOSAlert | null> {
     try {
       const { data, error } = await supabase
@@ -146,151 +220,6 @@ export class SupabaseService {
     } catch (error) {
       console.error('Error fetching active SOS alerts:', error);
       return [];
-    }
-  }
-
-  /**
-   * Emergency Contacts
-   */
-  async createEmergencyContact(contactData: EmergencyContactInsert): Promise<EmergencyContact | null> {
-    try {
-      const { data, error } = await supabase
-        .from('emergency_contacts')
-        .insert(contactData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error creating emergency contact:', error);
-      return null;
-    }
-  }
-
-  async getEmergencyContactsByUserId(userId: string): Promise<EmergencyContact[]> {
-    try {
-      const { data, error } = await supabase
-        .from('emergency_contacts')
-        .select('*')
-        .eq('user_id', userId)
-        .order('is_primary', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching emergency contacts:', error);
-      return [];
-    }
-  }
-
-  async updateEmergencyContact(contactId: string, updates: Partial<EmergencyContact>): Promise<EmergencyContact | null> {
-    try {
-      const { data, error } = await supabase
-        .from('emergency_contacts')
-        .update(updates)
-        .eq('id', contactId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error updating emergency contact:', error);
-      return null;
-    }
-  }
-
-  async deleteEmergencyContact(contactId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('emergency_contacts')
-        .delete()
-        .eq('id', contactId);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error deleting emergency contact:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Authentication
-   */
-  async signUp(email: string, password: string, userData: Partial<UserInsert>): Promise<{ user: any; error: any }> {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userData
-        }
-      });
-
-      return { user: data.user, error };
-    } catch (error) {
-      console.error('Error signing up:', error);
-      return { user: null, error };
-    }
-  }
-
-  async signIn(email: string, password: string): Promise<{ user: any; error: any }> {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      return { user: data.user, error };
-    } catch (error) {
-      console.error('Error signing in:', error);
-      return { user: null, error };
-    }
-  }
-
-  async signOut(): Promise<{ error: any }> {
-    try {
-      const { error } = await supabase.auth.signOut();
-      return { error };
-    } catch (error) {
-      console.error('Error signing out:', error);
-      return { error };
-    }
-  }
-
-  async getCurrentUser(): Promise<any> {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      return user;
-    } catch (error) {
-      console.error('Error getting current user:', error);
-      return null;
-    }
-  }
-
-  /**
-   * File Upload
-   */
-  async uploadAudioFile(file: File, userId: string): Promise<string | null> {
-    try {
-      const fileName = `${userId}/${Date.now()}_audio.webm`;
-      const { data, error } = await supabase.storage
-        .from('audio-files')
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from('audio-files')
-        .getPublicUrl(fileName);
-
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('Error uploading audio file:', error);
-      return null;
     }
   }
 }

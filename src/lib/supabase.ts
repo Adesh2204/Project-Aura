@@ -3,21 +3,23 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log('Supabase config check:', { 
-  hasUrl: !!supabaseUrl, 
-  hasKey: !!supabaseAnonKey,
-  url: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined',
-  key: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'undefined'
-});
-
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your .env file.');
-  console.error('VITE_SUPABASE_URL:', supabaseUrl);
-  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey);
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+  console.error('Missing Supabase environment variables');
+  console.log('VITE_SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing');
+  console.log('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing');
+  throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+console.log('Supabase configuration check:');
+console.log('URL:', supabaseUrl);
+console.log('Key:', supabaseAnonKey ? 'Present' : 'Missing');
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true
+  }
+});
 
 // Database types
 export interface Database {
@@ -29,7 +31,6 @@ export interface Database {
           email: string;
           full_name: string;
           phone_number: string;
-          emergency_contacts: string[];
           created_at: string;
           updated_at: string;
         };
@@ -38,7 +39,6 @@ export interface Database {
           email: string;
           full_name: string;
           phone_number: string;
-          emergency_contacts?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -47,9 +47,37 @@ export interface Database {
           email?: string;
           full_name?: string;
           phone_number?: string;
-          emergency_contacts?: string[];
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      emergency_contacts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          phone_number: string;
+          relationship: string;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          phone_number: string;
+          relationship?: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          phone_number?: string;
+          relationship?: string;
+          is_primary?: boolean;
+          created_at?: string;
         };
       };
       sos_alerts: {
@@ -91,35 +119,6 @@ export interface Database {
           resolved_at?: string;
           audio_url?: string;
           transcription?: string;
-        };
-      };
-      emergency_contacts: {
-        Row: {
-          id: string;
-          user_id: string;
-          name: string;
-          phone_number: string;
-          relationship: string;
-          is_primary: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          name: string;
-          phone_number: string;
-          relationship: string;
-          is_primary?: boolean;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          name?: string;
-          phone_number?: string;
-          relationship?: string;
-          is_primary?: boolean;
-          created_at?: string;
         };
       };
     };

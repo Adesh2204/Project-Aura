@@ -27,6 +27,21 @@ class StorageService {
   }
 
   /**
+   * Initialize default emergency contacts if none exist
+   */
+  private initializeDefaultContacts(): EmergencyContact[] {
+    const defaultContacts: EmergencyContact[] = [
+      {
+        id: `contact_${Date.now()}`,
+        name: 'Emergency Services',
+        phoneNumber: '911'
+      }
+    ];
+    this.saveEmergencyContacts(defaultContacts);
+    return defaultContacts;
+  }
+
+  /**
    * Save emergency contacts
    */
   saveEmergencyContacts(contacts: EmergencyContact[]): void {
@@ -38,7 +53,14 @@ class StorageService {
    */
   getEmergencyContacts(): EmergencyContact[] {
     const stored = localStorage.getItem(STORAGE_KEYS.EMERGENCY_CONTACTS);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) {
+      return this.initializeDefaultContacts();
+    }
+    const contacts = JSON.parse(stored);
+    if (contacts.length === 0) {
+      return this.initializeDefaultContacts();
+    }
+    return contacts;
   }
 
   /**
