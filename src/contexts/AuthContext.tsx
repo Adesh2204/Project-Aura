@@ -64,62 +64,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('Initializing authentication...');
         
-        // For now, always use mock authentication for development
-        console.warn('Using mock authentication for development');
-        
-        // Create a mock user session
-        const mockUser = {
-          id: 'mock-user-id',
-          email: 'demo@aura.com',
-          user_metadata: {},
-          app_metadata: {},
-          aud: 'authenticated',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          role: 'authenticated',
-          email_confirmed_at: new Date().toISOString(),
-          phone: null,
-          confirmed_at: new Date().toISOString(),
-          last_sign_in_at: new Date().toISOString(),
-          email_change_confirm_status: 0,
-          banned_until: null,
-          reauthentication_sent_at: null,
-          recovery_sent_at: null,
-          email_change_sent_at: null,
-          new_email: null,
-          invited_at: null,
-          confirmation_sent_at: null,
-          unconfirmed_email: null,
-          phone_change: null,
-          phone_change_sent_at: null,
-          email_change: null,
-          factors: null
-        };
+        // For development, start with no user (show sign-in screen)
+        console.log('Starting with no user - showing sign-in screen');
         
         if (isMounted) {
-          console.log('Setting mock user and profile...');
-          setUser(mockUser as any);
-          
-          // Create a mock profile
-          const mockProfile: UserProfile = {
-            id: mockUser.id,
-            fullName: 'Demo User',
-            phoneNumber: '+1234567890',
-            emergencyContacts: [
-              { id: '1', name: 'Emergency Services', phoneNumber: '911' }
-            ],
-            voiceActivationEnabled: false,
-            voiceActivationLanguage: 'en-US'
-          };
-          setUserProfile(mockProfile);
-          
-          // Also save to storage service for consistency
-          import('../services/storageService').then(({ storageService }) => {
-            storageService.saveUserProfile(mockProfile);
-            storageService.saveEmergencyContacts(mockProfile.emergencyContacts);
-          });
-          
-          console.log('Mock authentication complete, setting loading to false');
+          setUser(null);
+          setUserProfile(null);
           setLoading(false);
         }
         return;
@@ -255,16 +205,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         factors: null
       };
       
-      const mockProfile: UserProfile = {
-        id: mockUser.id,
-        fullName: 'Demo User',
-        phoneNumber: '+1234567890',
-        emergencyContacts: [
-          { id: '1', name: 'Emergency Services', phoneNumber: '911' }
-        ],
-        voiceActivationEnabled: false,
-        voiceActivationLanguage: 'en-US'
-      };
+             const mockProfile: UserProfile = {
+         id: mockUser.id,
+         fullName: email.split('@')[0] || 'Demo User', // Use email prefix as name
+         phoneNumber: '+1234567890',
+         emergencyContacts: [
+           { id: '1', name: 'Emergency Services', phoneNumber: '911' }
+         ],
+         voiceActivationEnabled: false,
+         voiceActivationLanguage: 'en-US'
+       };
       
       console.log('Mock sign in successful, setting user and profile...');
       setUser(mockUser as any);
