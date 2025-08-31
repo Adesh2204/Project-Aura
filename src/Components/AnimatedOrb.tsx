@@ -105,7 +105,7 @@ export const AnimatedOrb: React.FC<AnimatedOrbProps> = ({
       const analyser = analyserRef.current;
       const dataArray = dataArrayRef.current;
       if (analyser && dataArray && (isListening || permissionStatus === 'granted')) {
-        analyser.getByteTimeDomainData(dataArray);
+        analyser.getByteTimeDomainData(dataArray as any);
         let sumSquares = 0;
         for (let i = 0; i < dataArray.length; i++) {
           const v = (dataArray[i] - 128) / 128; // -1..1

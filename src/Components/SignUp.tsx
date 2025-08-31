@@ -45,14 +45,16 @@ export const SignUp: React.FC<SignUpProps> = ({ onSwitchToLogin }) => {
     }
 
     try {
-      const { user, error } = await signUp(formData.email, formData.password, {
+      const result = await signUp({
+        email: formData.email,
+        password: formData.password,
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
         emergencyContacts: []
       });
       
-      if (error) {
-        setError(error.message || 'Failed to create account');
+      if (result.error) {
+        setError(result.error.message || 'Failed to create account');
       }
     } catch (err) {
       setError('An unexpected error occurred');

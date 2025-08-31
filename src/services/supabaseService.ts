@@ -10,7 +10,7 @@ type SOSAlertInsert = Database['public']['Tables']['sos_alerts']['Insert'];
 type SOSAlertUpdate = Database['public']['Tables']['sos_alerts']['Update'];
 
 type EmergencyContactDB = Database['public']['Tables']['emergency_contacts']['Row'];
-type EmergencyContactInsert = Database['public']['Tables']['emergency_contacts']['Insert'];
+
 
 export interface UserWithContacts extends User {
   emergency_contacts: EmergencyContact[];

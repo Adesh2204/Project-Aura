@@ -223,15 +223,22 @@ const AppContent = () => {
     
     if (loading) return;
     
-    if (user && userProfile) {
-      console.log('User authenticated, checking onboarding status');
-      // User is authenticated, check if onboarding is complete
-      if (storageService.isOnboardingComplete()) {
-        console.log('Onboarding complete, setting view to home');
-        setCurrentView('home');
+    if (user) {
+      console.log('User authenticated, checking profile and onboarding status');
+      // User is authenticated, check if profile exists and onboarding is complete
+      if (userProfile) {
+        if (storageService.isOnboardingComplete()) {
+          console.log('Onboarding complete, setting view to home');
+          setCurrentView('home');
+        } else {
+          console.log('Onboarding incomplete, setting view to permissions');
+          setCurrentView('permissions');
+        }
       } else {
-        console.log('Onboarding incomplete, setting view to permissions');
-        setCurrentView('permissions');
+        console.log('User authenticated but no profile, staying in auth view');
+        // User is authenticated but profile is still loading or doesn't exist
+        // This will be handled by the AuthContext which will create a profile
+        setCurrentView('auth');
       }
     } else {
       console.log('User not authenticated, setting view to auth');

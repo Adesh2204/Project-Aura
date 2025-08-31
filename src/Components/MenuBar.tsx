@@ -35,7 +35,7 @@ const MenuBar = ({ placement = 'fixed' }: MenuBarProps) => {
   return (
     <Wrapper>
       <Menu as="div" className="relative">
-        {({ open }) => (
+        {() => (
           <>
             <Menu.Button 
               onClick={() => setIsOpen(!isOpen)}

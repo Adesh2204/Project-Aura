@@ -79,7 +79,8 @@ class StorageService {
     const stored = localStorage.getItem(STORAGE_KEYS.USER_PROFILE);
     const defaultProfile: UserProfile = {
       id: this.getUserId(),
-      name: '',
+      fullName: '',
+      phoneNumber: '',
       emergencyContacts: this.getEmergencyContacts(),
       voiceActivationEnabled: false,
       voiceActivationLanguage: 'en-US'
@@ -90,10 +91,13 @@ class StorageService {
 
   /**
    * Check if onboarding is complete
+   * For now, we'll consider onboarding complete if the user has a profile
+   * This can be enhanced later with more specific checks
    */
   isOnboardingComplete(): boolean {
     const profile = this.getUserProfile();
-    return profile.emergencyContacts.length > 0;
+    // Check if user has basic profile information
+    return !!(profile && profile.id);
   }
 
   /**

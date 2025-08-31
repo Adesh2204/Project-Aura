@@ -89,6 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
+        console.log('Initializing authentication...');
         // Add timeout to prevent infinite loading
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Authentication timeout')), 5000);
@@ -100,12 +101,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (error) throw error;
         
+        console.log('Session check result:', { session: !!session, user: !!session?.user });
+        
         if (isMounted) {
           setUser(session?.user ?? null);
           
           if (session?.user) {
+            console.log('User found in session, fetching profile...');
             try {
-              await fetchUserProfile(session.user.id);
+              const profile = await fetchUserProfile(session.user.id);
+              console.log('Profile fetched:', !!profile);
             } catch (profileError) {
               console.warn('Failed to fetch user profile, continuing without profile:', profileError);
               // Don't block the app if profile fetch fails
@@ -133,12 +138,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', { event, user: !!session?.user });
       if (isMounted) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
           try {
-            await fetchUserProfile(session.user.id);
+            const profile = await fetchUserProfile(session.user.id);
+            console.log('Profile fetched on auth change:', !!profile);
           } catch (profileError) {
             console.warn('Failed to fetch user profile on auth change:', profileError);
           }
@@ -220,16 +227,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
+      console.log('Signing in user:', email);
       const { data: { user: signedInUser }, error: signInError } = await supabaseService.signIn(email, password);
       
       if (signInError || !signedInUser) {
         throw signInError || new Error('Failed to sign in');
       }
 
+      console.log('User signed in successfully:', signedInUser.id);
+
       // Fetch user profile
       const profile = await fetchUserProfile(signedInUser.id);
+      console.log('Profile fetch result:', !!profile);
       
       if (!profile) {
+        console.log('No profile found, creating default profile...');
         // If no profile exists, create one with default values
         await supabaseService.createUser({
           id: signedInUser.id,
@@ -248,8 +260,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await fetchUserProfile(signedInUser.id);
       }
 
+      console.log('Sign in completed successfully');
       return { 
-        data: { user: signedInUser, profile: userProfile },
+        data: { user: signedInUser, profile },
         error: null 
       };
       

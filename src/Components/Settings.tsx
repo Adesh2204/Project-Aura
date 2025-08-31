@@ -15,14 +15,14 @@ export const Settings: React.FC<SettingsProps> = ({
   onBack
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'contacts' | 'help' | 'voice'>('contacts');
-  const [userName, setUserName] = useState(userProfile.name);
+  const [userName, setUserName] = useState(userProfile.fullName);
 
   const handleContactsUpdate = (contacts: EmergencyContact[]) => {
     onProfileUpdate({ emergencyContacts: contacts });
   };
 
   const handleNameUpdate = () => {
-    onProfileUpdate({ name: userName.trim() });
+    onProfileUpdate({ fullName: userName.trim() });
   };
 
   return (

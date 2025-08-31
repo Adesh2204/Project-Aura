@@ -19,10 +19,10 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToSignUp }) => {
     setError('');
 
     try {
-      const { user, error } = await signIn(email, password);
+      const result = await signIn({ email, password });
       
-      if (error) {
-        setError(error.message || 'Failed to sign in');
+      if (result.error) {
+        setError(result.error.message || 'Failed to sign in');
       }
     } catch (err) {
       setError('An unexpected error occurred');

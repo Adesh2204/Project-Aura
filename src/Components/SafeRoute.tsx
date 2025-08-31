@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Navigation, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Navigation, Clock, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
