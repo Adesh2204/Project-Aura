@@ -96,8 +96,16 @@ class StorageService {
    */
   isOnboardingComplete(): boolean {
     const profile = this.getUserProfile();
+    console.log('Checking onboarding completion for profile:', profile);
     // Check if user has basic profile information
-    return !!(profile && profile.id);
+    // For mock authentication, always return true
+    if (profile?.id === 'mock-user-id') {
+      console.log('Mock user detected, onboarding complete');
+      return true;
+    }
+    const isComplete = !!(profile && profile.id);
+    console.log('Onboarding complete:', isComplete);
+    return isComplete;
   }
 
   /**
