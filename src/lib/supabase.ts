@@ -31,6 +31,8 @@ export interface Database {
           email: string;
           full_name: string;
           phone_number: string;
+          voice_activation_enabled: boolean;
+          voice_activation_language: string;
           created_at: string;
           updated_at: string;
         };
@@ -39,6 +41,8 @@ export interface Database {
           email: string;
           full_name: string;
           phone_number: string;
+          voice_activation_enabled?: boolean;
+          voice_activation_language?: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -47,6 +51,8 @@ export interface Database {
           email?: string;
           full_name?: string;
           phone_number?: string;
+          voice_activation_enabled?: boolean;
+          voice_activation_language?: string;
           created_at?: string;
           updated_at?: string;
         };

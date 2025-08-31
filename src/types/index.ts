@@ -6,7 +6,8 @@ export interface EmergencyContact {
 
 export interface UserProfile {
   id: string;
-  name: string;
+  fullName: string;
+  phoneNumber: string;
   emergencyContacts: EmergencyContact[];
   voiceActivationEnabled: boolean;
   voiceActivationLanguage: string;

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabaseService } from '../services/supabaseService';
 import { supabase } from '../lib/supabase';
 import { UserProfile, EmergencyContact } from '../types';
@@ -27,7 +28,7 @@ interface SignInData {
 }
 
 interface AuthContextType {
-  user: any; // Consider replacing 'any' with a proper User type from Supabase
+  user: SupabaseUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
   signUp: (data: SignUpData) => Promise<AuthResponse>;
@@ -53,7 +54,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
@@ -64,7 +65,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (profile) {
         const userProfile: UserProfile = {
           id: profile.id,
-          email: profile.email || '',
           fullName: profile.full_name || '',
           phoneNumber: profile.phone_number || '',
           emergencyContacts: profile.emergency_contacts || [],
@@ -86,7 +86,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    let subscription: { unsubscribe: () => void } | null = null;
 
     const initializeAuth = async () => {
       try {
@@ -119,7 +118,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
 
     // Set up auth state change listener
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (isMounted) {
         setUser(session?.user ?? null);
         
@@ -130,12 +129,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     });
-
-    subscription = data;
     
     return () => {
       isMounted = false;
-      subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
 
@@ -163,8 +160,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         phone_number: userData.phoneNumber
       };
 
-      const { error: profileError } = await supabaseService.createUser(profileData);
-      if (profileError) throw profileError;
+      const createdProfile = await supabaseService.createUser(profileData);
+      if (!createdProfile) {
+        throw new Error('Failed to create user profile');
+      }
 
       // 3. Handle emergency contacts
       const contacts = userData.emergencyContacts?.length 
@@ -203,7 +202,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      const { user: signedInUser, error: signInError } = await supabaseService.signIn(email, password);
+      const { data: { user: signedInUser }, error: signInError } = await supabaseService.signIn(email, password);
       
       if (signInError || !signedInUser) {
         throw signInError || new Error('Failed to sign in');
@@ -235,31 +234,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         data: { user: signedInUser, profile: userProfile },
         error: null 
       };
-        
-        if (newProfile) {
-          await supabaseService.createEmergencyContact(signedInUser.id, {
-            name: 'Emergency Services',
-            phoneNumber: '911'
-          });
-          
-          const completeProfile = await supabaseService.getUserById(signedInUser.id);
-          if (completeProfile) {
-            setUserProfile({
-              id: completeProfile.id,
-              email: completeProfile.email,
-              fullName: completeProfile.full_name,
-              phoneNumber: completeProfile.phone_number,
-              emergencyContacts: completeProfile.emergency_contacts,
-              voiceActivationEnabled: false,
-              voiceActivationLanguage: 'en-US'
-            });
-          }
-        }
-      }
+      
+    } catch (error: any) {
+      console.error('Sign in error:', error);
+      const authError: AuthError = {
+        message: error.message || 'Failed to sign in',
+        code: error.code
+      };
+      setError(authError);
+      return { data: null, error: authError };
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return { user: signedInUser, error };
-  } catch (error) {
+  const signOut = async (): Promise<AuthResponse<void>> => {
+    setLoading(true);
+    setError(null);
+    
     try {
       const { error } = await supabase.auth.signOut();
       
@@ -287,6 +279,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   
   const clearError = () => setError(null);
 
+  /**
+   * SAFE PROFILE UPDATE FUNCTION
+   * 
+   * This function fixes the critical bug where partial updates would overwrite
+   * existing data with undefined values, causing data loss.
+   * 
+   * The fix dynamically builds the update payload to only include fields that:
+   * 1. Are present in the updates object
+   * 2. Are not undefined
+   * 3. Actually need to be updated
+   * 
+   * This prevents accidental data erasure and ensures only intended fields are modified.
+   */
   const updateUserProfile = async (updates: Partial<UserProfile>): Promise<AuthResponse> => {
     if (!user) {
       const error: AuthError = { message: 'User not authenticated' };
@@ -298,24 +303,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
     
     try {
-      // Update in database
-      const { error: updateError } = await supabaseService.updateUser(user.id, {
-        full_name: updates.fullName,
-        phone_number: updates.phoneNumber,
-        voice_activation_enabled: updates.voiceActivationEnabled,
-        voice_activation_language: updates.voiceActivationLanguage
-      });
+      // DYNAMIC PAYLOAD CONSTRUCTION - FIXES THE DATA LOSS BUG
+      // Only include fields that are actually provided and not undefined
+      const updatePayload: any = {};
       
-      if (updateError) throw updateError;
+      if (updates.fullName !== undefined) {
+        updatePayload.full_name = updates.fullName;
+      }
       
-      // Update local state
-      setUserProfile(prev => ({
-        ...prev!,
-        ...updates
-      }));
+      if (updates.phoneNumber !== undefined) {
+        updatePayload.phone_number = updates.phoneNumber;
+      }
+      
+      if (updates.voiceActivationEnabled !== undefined) {
+        updatePayload.voice_activation_enabled = updates.voiceActivationEnabled;
+      }
+      
+      if (updates.voiceActivationLanguage !== undefined) {
+        updatePayload.voice_activation_language = updates.voiceActivationLanguage;
+      }
+      
+      // Only proceed if there are actual updates to make
+      if (Object.keys(updatePayload).length === 0) {
+        return { 
+          data: { updated: false, message: 'No updates provided' },
+          error: null 
+        };
+      }
+
+      // Update in database with safe payload
+      const updatedProfile = await supabaseService.updateUser(user.id, updatePayload);
+      
+      if (!updatedProfile) {
+        throw new Error('Failed to update user profile');
+      }
+      
+      // Update local state with the new values
+      setUserProfile(prev => prev ? { ...prev, ...updates } : null);
       
       return { 
-        data: { updated: true },
+        data: { updated: true, profile: updatedProfile },
         error: null 
       };
       
